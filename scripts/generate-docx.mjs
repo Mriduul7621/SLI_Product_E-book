@@ -108,6 +108,11 @@ const CHAPTER_IMAGE = {
   sspe: "scene-sspe.jpg",
   sdpp: "scene-sdpp.jpg",
   riders: "scene-riders.jpg",
+  "uwn-basics": "scene-uwn-basics.jpg",
+  "uwn-docs": "scene-uwn-docs.jpg",
+  "uwn-honesty": "scene-uwn-honesty.jpg",
+  "uwn-fa-report": "scene-uwn-fa-report.jpg",
+  "uwn-grid": "scene-uwn-grid.jpg",
 };
 
 const CAPTION = {
@@ -117,6 +122,11 @@ const CAPTION = {
   sspe: "একবারের বিনিয়োগে দীর্ঘমেয়াদি নিশ্চিন্ততা",
   sdpp: "নমনীয় সঞ্চয় আর স্বাস্থ্য সুরক্ষা — একই পলিসিতে",
   riders: "সঠিক রাইডার যুক্ত করলেই ৩৬০-ডিগ্রি সুরক্ষা বলয়",
+  "uwn-basics": "প্রস্তাব জমা মানেই পলিসি নয় — আগে আসে ঝুঁকির যাচাই",
+  "uwn-docs": "সঠিক নথি জমা দিলেই দ্রুত অনুমোদন",
+  "uwn-honesty": "সত্য তথ্যই দাবির সময় পরিবারের আসল সুরক্ষা",
+  "uwn-fa-report": "এজেন্টই কোম্পানির প্রথম ফিল্ড আন্ডাররাইটার",
+  "uwn-grid": "বয়স ও বীমাঙ্ক মিলিয়ে এক নজরে সঠিক টেস্টের তালিকা",
 };
 
 /* --------------------------------------------------------------- text utils */
@@ -549,8 +559,19 @@ function chapterSection(ch) {
 
   const exp = ch.explanation || {};
   if (exp.paramTable) {
-    children.push(h2("প্রোডাক্টের মূল বৈশিষ্ট্যসমূহ", OLIVE_DEEP));
-    children.push(dataTable(exp.paramTable.headers, exp.paramTable.rows, { widths: [34, 66] }));
+    const wide = exp.paramTable.headers.length > 2;
+    children.push(
+      h2(
+        exp.paramTable.label ||
+          (wide ? "বয়স ও বীমাঙ্ক অনুযায়ী মেডিকেল পরীক্ষা" : "প্রোডাক্টের মূল বৈশিষ্ট্যসমূহ"),
+        OLIVE_DEEP,
+      ),
+    );
+    children.push(
+      dataTable(exp.paramTable.headers, exp.paramTable.rows, {
+        ...(wide ? { fontSize: 13 } : { widths: [34, 66] }),
+      }),
+    );
     children.push(spacer(140));
   }
 
@@ -661,7 +682,7 @@ children.push(spacer(200));
 
 children.push(
   dataTable(
-    ["প্রোডাক্ট মডিউল", "মাস্টার কুইজ", "সংস্করণ", "প্রকাশকাল"],
+    ["মোট মডিউল", "মাস্টার কুইজ", "সংস্করণ", "প্রকাশকাল"],
     [[bn(data.chapters.length), bn(data.masterAssessment.questions.length), "১.০", "২০২৬"]],
     { fontSize: 17 },
   ),

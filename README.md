@@ -1,9 +1,10 @@
-# গল্পে গল্পে শিখি — শান্তা লাইফের বিমা প্রোডাক্ট
+# গল্পে গল্পে শিখি — শান্তা লাইফের বিমা প্রোডাক্ট ও আন্ডাররাইটিং গাইডলাইন
 
 **ফিল্ড ফোর্স প্রশিক্ষণ ই-বুক** · Shanta Life Insurance PLC — Learning & Development
 
-A brand-compliant digital book that presents every Shanta Life product module as a
-field story, plus a printable **PDF** and an editable **Word (DOCX)** edition.
+A brand-compliant digital book that presents every Shanta Life product module **and the
+underwriting guideline** as field stories, plus a printable **PDF** and an editable
+**Word (DOCX)** edition.
 
 ---
 
@@ -12,16 +13,27 @@ field story, plus a printable **PDF** and an editable **Word (DOCX)** edition.
 | Surface | Location | Notes |
 | --- | --- | --- |
 | Web e-book (React + Vite + Tailwind 4) | `src/` | Reading-first layout, sticky table of contents, reading progress, interactive quizzes |
-| Downloadable **PDF** (64 pages, A4) | `public/shanta-life-ebook.pdf` | Cover, title page, contents with real page numbers, chapter scene art, objection playbooks, hard-question mock bank, back cover |
+| Downloadable **PDF** (84 pages, A4) | `public/shanta-life-ebook.pdf` | Cover, title page, contents with real page numbers, chapter scene art, objection playbooks, hard-question mock bank, back cover |
 | Downloadable **Word** file | `public/shanta-life-ebook.docx` | Same structure/visuals; each chapter starts on a new page, chapter = Heading 1 / section = Heading 2, field-based automatic TOC, SDPP tier table on its own page |
 | Brand assets | `public/assets/img/` | Approved logo (colour + white), cover artwork, scene illustrations, field photos |
 | Bengali webfonts | `public/fonts/` | Self-hosted Noto Sans Bengali (400 / 600 / 700 / 800) |
 
-Content was extended (2026-10) on request: the field stories are now longer and warmer,
-and four new training banks were added — a need-based selling framework, a 7-step
-objection-handling method (LAER-PC), a 12-question hard mock-test bank, and a no-need
-ethics playbook. Every product figure in the new material is taken from the existing
-product chapters, never invented.
+Content was extended (2026-10) in two passes. First: the field stories were rewritten
+longer and warmer, and four training banks were added — a need-based selling framework,
+a 7-step objection-handling method (LAER-PC), a hard mock-test bank and a no-need ethics
+playbook. Second: a new **Part II — Underwriting Guideline** (chapters ৮–১২) built from
+the approved underwriting presentation and documentation:
+
+| Chapter | Focus |
+| --- | --- |
+| ৮ · আন্ডাররাইটিং কী এবং কেন প্রয়োজন? | definition, underwriter's role, 5 risk drivers, process flow |
+| ৯ · প্রয়োজনীয় নথি ও গাইডলাইন | adult / minor / payor document lists, 60-second checklist |
+| ১০ · স্বাস্থ্যগত ও পারিবারিক তথ্যের সততা | utmost good faith, medical & family history, rider amounts |
+| ১১ · এজেন্ট/ফিল্ড আন্ডাররাইটারের দায়বদ্ধতা | FA UW report fields, risk categorisation, pocket checklist |
+| ১২ · মেডিকেল ও ফিন্যান্সিয়াল আন্ডাররাইটিং গ্রিড | age × sum-assured grid, 50 lakh / 1 crore panels, child limits |
+
+Every product and underwriting figure in the new material comes from the supplied
+product chapters and underwriting documentation — nothing is invented.
 
 ## 2. Brand compliance
 

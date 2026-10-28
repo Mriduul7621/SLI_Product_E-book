@@ -38,14 +38,14 @@ const navItems: NavItem[] = [
     num: c.number,
     kind: "chapter" as const,
   })),
-  { id: "mastery", label: "নিড-বেজড বিক্রয় ফ্রেমওয়ার্ক", num: "০৮", kind: "appendix" },
-  { id: "objection-method", label: "আপত্তি মোকাবেলার ৭ ধাপ", num: "০৯", kind: "appendix" },
-  { id: "mock-tests", label: "কঠিন প্রশ্নের মক টেস্ট", num: "১০", kind: "appendix" },
-  { id: "no-need", label: "নো-নিড এথিক্স", num: "১১", kind: "appendix" },
-  { id: "quick-reference", label: "দ্রুত রেফারেন্স টেবিল", num: "১২", kind: "appendix" },
-  { id: "assessment", label: "মাস্টার অ্যাসেসমেন্ট", num: "১৩", kind: "appendix" },
-  { id: "ethics", label: "ফিল্ড এথিক্স চেকলিস্ট", num: "১৪", kind: "appendix" },
-  { id: "closing", label: "উপসংহার", num: "১৫", kind: "appendix" },
+  { id: "mastery", label: "নিড-বেজড বিক্রয় ফ্রেমওয়ার্ক", num: "১৩", kind: "appendix" },
+  { id: "objection-method", label: "আপত্তি মোকাবেলার ৭ ধাপ", num: "১৪", kind: "appendix" },
+  { id: "mock-tests", label: "কঠিন প্রশ্নের মক টেস্ট", num: "১৫", kind: "appendix" },
+  { id: "no-need", label: "নো-নিড এথিক্স", num: "১৬", kind: "appendix" },
+  { id: "quick-reference", label: "দ্রুত রেফারেন্স টেবিল", num: "১৭", kind: "appendix" },
+  { id: "assessment", label: "মাস্টার অ্যাসেসমেন্ট", num: "১৮", kind: "appendix" },
+  { id: "ethics", label: "ফিল্ড এথিক্স চেকলিস্ট", num: "১৯", kind: "appendix" },
+  { id: "closing", label: "উপসংহার", num: "২০", kind: "appendix" },
 ];
 
 const contentsItems: ContentCard[] = [
@@ -89,7 +89,7 @@ const redAlertCount = ebookData.chapters.reduce(
 const quizCount = ebookData.chapters.length + ebookData.masterAssessment.questions.length;
 
 const heroStats = [
-  { value: bn(ebookData.chapters.length), label: "প্রোডাক্ট মডিউল" },
+  { value: bn(ebookData.chapters.length), label: "মোট মডিউল" },
   { value: bn(quizCount), label: "কুইজ প্রশ্ন" },
   { value: bn(redAlertCount), label: "রেড অ্যালার্ট" },
 ];
