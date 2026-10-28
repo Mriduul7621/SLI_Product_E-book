@@ -131,7 +131,7 @@ export function QuickReferenceSection({ data }: { data: Any }) {
   return (
     <SectionShell
       id="quick-reference"
-      number="০৮"
+      number="১৭"
       eyebrow="Appendix A · Quick Reference"
       title={data.heading}
       variant="appendix"
@@ -153,7 +153,7 @@ export function MasterAssessmentSection({ data }: { data: Any }) {
   return (
     <SectionShell
       id="assessment"
-      number="০৯"
+      number="১৮"
       eyebrow="Appendix B · Master Assessment"
       title={data.heading}
       variant="appendix"
@@ -184,7 +184,7 @@ export function EthicsChecklistSection({ data }: { data: Any }) {
   return (
     <SectionShell
       id="ethics"
-      number="১০"
+      number="১৯"
       eyebrow="Appendix C · Field Ethics"
       title={data.heading}
       variant="appendix"
@@ -225,7 +225,7 @@ export function ClosingSection({ data }: { data: Any }) {
   return (
     <SectionShell
       id="closing"
-      number="১১"
+      number="২০"
       eyebrow="Closing Note"
       title={data.heading}
       variant="appendix"

@@ -65,7 +65,7 @@ export function Header({
   menuOpen: boolean;
 }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-charcoal/10 bg-shell/90 backdrop-blur-md no-print">
+    <header className="sticky top-16 z-30 border-b border-charcoal/10 bg-shell/90 backdrop-blur-md no-print">
       <div className="mx-auto flex h-16 max-w-[1240px] items-center gap-3 px-4 sm:px-6 lg:px-8">
         <button
           type="button"

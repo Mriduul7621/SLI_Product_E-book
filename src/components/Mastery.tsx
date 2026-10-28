@@ -189,7 +189,7 @@ export function NeedBasedSection({ data }: { data: Any }) {
     <div className="scroll-mt-24">
       <SectionShell
         id="mastery"
-        number="০৮"
+        number="১৩"
         eyebrow="Need-Based Selling"
         title={data.heading}
         tagline={data.tagline}
@@ -238,7 +238,7 @@ export function ObjectionMethodSection({ data }: { data: Any }) {
     <div className="scroll-mt-24">
       <SectionShell
         id="objection-method"
-        number="০৯"
+        number="১৪"
         eyebrow="Objection Handling · LAER-PC"
         title={data.heading}
         tagline={data.tagline}
@@ -285,7 +285,7 @@ export function MockTestSection({ data }: { data: Any }) {
     <div className="scroll-mt-24">
       <SectionShell
         id="mock-tests"
-        number="১০"
+        number="১৫"
         eyebrow="Hard Question Bank"
         title={data.heading}
         tagline={data.tagline}
@@ -352,7 +352,7 @@ export function NoNeedSection({ data }: { data: Any }) {
     <div className="scroll-mt-24">
       <SectionShell
         id="no-need"
-        number="১১"
+        number="১৬"
         eyebrow="Ethics · The No-Need Case"
         title={data.heading}
         tagline={data.tagline}

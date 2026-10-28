@@ -1,9 +1,9 @@
 {
-  "name": "shanta-life-ebook",
+  "name": "shanta-life-learning-hub",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "গল্পে গল্পে শিখি — শান্তা লাইফের বিমা প্রোডাক্ট | ফিল্ড ফোর্স ট্রেনিং ই-বুক",
+  "description": "শান্তা লাইফ Learning Hub — ই-বুক, মূল্যায়ন ও অগ্রগতি ট্র্যাকিং (Google Sheets ডেটাবেস)",
   "engines": {
     "node": "22.x"
   },
@@ -14,7 +14,10 @@
     "typecheck": "tsc --noEmit",
     "build:docx": "node scripts/generate-docx.mjs",
     "build:pdf": "python3 scripts/build_pdf.py",
-    "build:book": "npm run build:docx && npm run build:pdf"
+    "build:book": "npm run build:docx && npm run build:pdf",
+    "test": "node scripts/smoke.mjs && node scripts/backend-test.mjs && node scripts/sync-test.mjs",
+    "test:flow": "node scripts/flow-test.mjs",
+    "test:all": "npm run test && npm run test:flow"
   },
   "dependencies": {
     "clsx": "2.1.1",
@@ -29,6 +32,7 @@
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.1",
+    "jsdom": "^27.0.0",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",
     "vite": "7.3.2",
