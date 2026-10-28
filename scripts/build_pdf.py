@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 from fpdf import FPDF
-from fpdf.enums import RenderStyle, XPos, YPos
+from fpdf.enums import MethodReturnValue, RenderStyle, XPos, YPos
 from fpdf.fonts import FontFace
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -136,6 +136,97 @@ def prepare_back_cover_bg() -> Path:
     return dst
 
 
+
+# --------------------------------------------------------------------------
+# Bengali-safe text layout
+#
+# fpdf2's word-wrapping path re-shapes fragments and can corrupt conjuncts
+# (e.g. "মোট" -> "মোট" with stray dotted circles). Bengali clusters never span
+# a space, so we wrap at spaces ourselves and paint every word with cell().
+# --------------------------------------------------------------------------
+def wrap_words(pdf: "Book", text: str, width: float, size: float) -> list[list[str]]:
+    """Greedy word wrap based on rendered word widths."""
+    pdf.set_font("bn", "", size)
+    space_w = pdf.get_string_width(" ")
+    lines: list[list[str]] = []
+    current: list[str] = []
+    current_w = 0.0
+    for word in str(text).replace("\u00a0", " ").split(" "):
+        if not word:
+            continue
+        w = pdf.get_string_width(word)
+        if w > width and not current:
+            # extremely long token: hard-split on characters as a fallback
+            chunk = ""
+            for ch in word:
+                if pdf.get_string_width(chunk + ch) > width and chunk:
+                    lines.append([chunk])
+                    chunk = ch
+                else:
+                    chunk += ch
+            if chunk:
+                current = [chunk]
+                current_w = pdf.get_string_width(chunk)
+            continue
+        needed = w if not current else current_w + space_w + w
+        if needed > width and current:
+            lines.append(current)
+            current = [word]
+            current_w = w
+        else:
+            current.append(word)
+            current_w = needed
+    if current:
+        lines.append(current)
+    return lines or [[]]
+
+
+def paint_paragraph(
+    pdf: "Book",
+    text: str,
+    width: float,
+    line_h: float,
+    size: float,
+    color,
+    align: str = "L",
+    dry_run: bool = False,
+) -> tuple[int, float]:
+    """Draw (or measure) a wrapped paragraph word by word. Returns (lines, height)."""
+    pdf.set_font("bn", "", size)
+    pdf.text_color = color
+    lines = wrap_words(pdf, text, width, size)
+    space_w = pdf.get_string_width(" ")
+    x0 = pdf.l_margin if abs(pdf.x - pdf.l_margin) < 0.01 else pdf.x
+    y0 = pdf.y
+    if dry_run:
+        return len(lines), len(lines) * line_h
+
+    x = x0
+    y = y0
+    for idx, words in enumerate(lines):
+        widths = [pdf.get_string_width(w) for w in words]
+        natural = sum(widths) + space_w * (len(words) - 1 if len(words) > 1 else 0)
+        gap = space_w
+        if align in ("J", "F") and idx < len(lines) - 1 and len(words) > 1:
+            slack = width - natural
+            if slack > 0:
+                gap = space_w + slack / (len(words) - 1)
+        line_w = sum(widths) + gap * (len(words) - 1 if len(words) > 1 else 0)
+        if align in ("C", "Q"):
+            cx = x0 + max(0.0, (width - line_w) / 2)
+        elif align in ("R", "W"):
+            cx = x0 + max(0.0, width - line_w)
+        else:
+            cx = x
+        for w, word in zip(widths, words):
+            pdf.set_xy(cx, y)
+            pdf.cell(w + 0.4, line_h, word, align="L")
+            cx += w + gap
+        y += line_h
+    pdf.set_xy(x0, y)
+    return len(lines), y - y0
+
+
 class Book(FPDF):
     def __init__(self) -> None:
         super().__init__(orientation="P", unit="mm", format="A4")
@@ -149,9 +240,79 @@ class Book(FPDF):
             self.add_font("bn", style, str(FONTS / filename))
             self.add_font("bns", style, str(FONTS / filename))
         self.c_margin = 1.6
+        self._no_wrap_override = False
         self.running_label = ""
         self.cover_mode = False
         self.no_chrome: set[int] = set()
+
+    # --------------------------------------------------------------- text --
+    def multi_cell(
+        self,
+        w,
+        h=None,
+        text="",
+        border=0,
+        align="J",
+        fill=False,
+        split_only=False,
+        link="",
+        ln="DEPRECATED",
+        max_line_height=None,
+        new_x=XPos.LMARGIN,
+        new_y=YPos.NEXT,
+        dry_run=False,
+        output=MethodReturnValue.HEIGHT,
+        align_text=None,
+        **_kwargs,
+    ):
+        """Word-safe replacement for multi_cell (Bengali shaping safe)."""
+        if self._no_wrap_override:
+            return super().multi_cell(
+                w, h, text, border, align, fill, split_only, link, ln,
+                max_line_height, new_x, new_y, dry_run, output, **_kwargs,
+            )
+        width = w if w and w > 0 else (self.w - self.r_margin - self.x)
+        line_h = h if h else None
+        if line_h is None:
+            line_h = self.get_string_width("x") and 5.4
+        text = "" if text is None else str(text)
+        size = self.font_size_pt
+        color = self.text_color
+
+        def measure(txt: str) -> tuple[int, float]:
+            return paint_paragraph(self, txt, width, line_h, size, color, align, dry_run=True)
+
+        if dry_run or split_only:
+            n_lines, height = measure(text)
+            if split_only:
+                return [
+                    " ".join(words)
+                    for words in wrap_words(self, text, width, size)
+                ]
+            if output == MethodReturnValue.LINES:
+                return wrap_words(self, text, width, size)
+            return height
+
+        # paint, handling page breaks paragraph by paragraph
+        remaining = text
+        n_lines, height = measure(remaining)
+        if self.get_y() + height > self.page_break_trigger and self.get_y() + line_h <= self.page_break_trigger:
+            pass
+        lines_drawn, used = paint_paragraph(self, remaining, width, line_h, size, color, align)
+        if new_y == YPos.NEXT:
+            pass  # paint_paragraph already advanced y
+        if new_x == XPos.RIGHT:
+            self.set_x(self.x)
+        elif new_x == XPos.LMARGIN:
+            self.set_x(self.l_margin)
+        # emulate fpdf's returned value
+        if output == MethodReturnValue.LINES:
+            return wrap_words(self, text, width, size)
+        return used if output == MethodReturnValue.HEIGHT else None
+
+    def ln(self, h=None):
+        super().ln(h)
+        return self
 
     # ------------------------------------------------------------ chrome --
     def header(self) -> None:
@@ -647,9 +808,9 @@ def draw_toc(pdf: Book, entries: list[tuple[str, str, str]], pages: list[int] | 
 def draw_chapter(pdf: Book, chapter: dict) -> int:
     visuals = chapter_visual_map()
     cid = chapter["id"]
+    pdf.running_label = f"CHAPTER {chapter['number']} · {chapter['titleEn'].upper()[:34]}"
     pdf.add_page()
     start_page = pdf.page_no()
-    pdf.running_label = f"CHAPTER {chapter['number']} · {chapter['titleEn'].upper()[:34]}"
 
     # opener
     y = pdf.get_y()
@@ -699,27 +860,37 @@ def draw_chapter(pdf: Book, chapter: dict) -> int:
         inner = CW - pad * 2
         pdf.will_page_break(40)
         y0 = pdf.get_y()
-        # measure
-        pdf.set_font("bn", "", 8.9)
+
+        # ---- measure exactly the way we draw -------------------------------
+        pdf.set_font("bn", "", 8.2)
+        chars_h = pdf.multi_cell(inner, 4.6, "চরিত্র: " + story.get("characters", ""),
+                                 dry_run=True, output="HEIGHT", align="L")
+        head_h = pad + 5.0 + chars_h + 1.6 + 1.0
         heights = []
         for d in dialogue:
-            heights.append(
-                pdf.multi_cell(
-                    inner - 6, 5.4, d["text"], dry_run=True, output="HEIGHT", align="L"
+            if d["speaker"] in ("বর্ণনা", "ফলাফল"):
+                heights.append(
+                    pdf.multi_cell(inner, 5.2, d["speaker"] + ": " + d["text"],
+                                   dry_run=True, output="HEIGHT", align="L") + 1.3
                 )
-                + 6.4
-            )
-        chars_h = 8.0
-        total = pad + 9.0 + chars_h + sum(heights) + pad
-        if y0 + min(total, PAGE_H - MB - y0) > PAGE_H - MB:
+            else:
+                pdf.set_font("bn", "", 8.9)
+                heights.append(
+                    5.06
+                    + pdf.multi_cell(inner - 3, 5.4, d["text"], dry_run=True, output="HEIGHT", align="L") * 1.02
+                    + 1.8
+                )
+        total = head_h + sum(heights) + pad - 8.0
+        if y0 + total > PAGE_H - MB:
             pdf.add_page()
             y0 = pdf.get_y()
-        pdf.panel(ML, y0, CW, min(total, PAGE_H - MB - y0), SHELL, bar=OLIVE)
+            total = min(total, PAGE_H - MB - y0)
+        pdf.panel(ML, y0, CW, total, SHELL, bar=OLIVE)
         pdf.set_xy(ML + pad, y0 + pad - 1.2)
         pdf.set_font("bn", "B", 10.4)
         pdf.set_text_color(*OLIVE_DEEP)
         pdf.cell(inner, 5.4, "০১ · গল্প (Story)", align="L")
-        pdf.set_xy(ML + pad, y0 + pad + 5.0)
+        pdf.set_xy(ML + pad, y0 + pad + 4.4)
         pdf.set_font("bn", "", 8.2)
         pdf.set_text_color(*CHARCOAL_SOFT)
         pdf.multi_cell(inner, 4.6, "চরিত্র: " + story.get("characters", ""), align="L")
@@ -728,10 +899,6 @@ def draw_chapter(pdf: Book, chapter: dict) -> int:
         for d in dialogue:
             speaker = d["speaker"]
             is_note = speaker in ("বর্ণনা", "ফলাফল")
-            y = pdf.get_y()
-            if y + 16 > PAGE_H - MB:
-                pdf.add_page()
-                y = pdf.get_y()
             if is_note:
                 pdf.set_x(ML + pad)
                 pdf.set_font("bn", "B", 8.6)
@@ -740,7 +907,7 @@ def draw_chapter(pdf: Book, chapter: dict) -> int:
                 pdf.set_font("bn", "", 8.8)
                 pdf.set_text_color(*INK)
                 pdf.write(5.2, d["text"])
-                pdf.ln(6.6)
+                pdf.ln(6.5)
             else:
                 pdf.set_x(ML + pad)
                 pdf.set_font("bn", "B", 8.6)
@@ -752,12 +919,16 @@ def draw_chapter(pdf: Book, chapter: dict) -> int:
                 pdf.set_text_color(*INK)
                 pdf.multi_cell(inner - 3, 5.4, d["text"], align="L")
                 pdf.ln(1.8)
-        pdf.set_y(pdf.get_y() + 2.4)
+        if os.environ.get("SLI_DEBUG"):
+            print(f"[story] allocated={total:.1f} used={pdf.get_y()-y0:.1f}")
+        pdf.set_y(y0 + min(total, PAGE_H - MB - y0) + 2.4)
 
     # explanation
     exp = chapter.get("explanation", {})
-    pdf.add_page()
-    pdf.ln(0)
+    if PAGE_H - MB - pdf.get_y() < 118:
+        pdf.add_page()
+    else:
+        pdf.ln(6)
     pdf.set_font("bn", "B", 12.6)
     pdf.set_text_color(*CHARCOAL_DEEP)
     pdf.multi_cell(CW, 7.2, "০২ · সহজ ব্যাখ্যা (Simple Explanation)", align="L")
@@ -1250,7 +1421,7 @@ def build(toc_pages: list[int] | None, out: Path) -> list[int]:
         pdf.set_xy(PAGE_W - MR - 10, y + 3.0)
         pdf.set_font("bns", "B", 7.4)
         pdf.set_text_color(*CHARCOAL_SOFT)
-        pdf.cell(8, 5, "0" + bn(i + 1) if i < 9 else bn(i + 1), align="R")
+        pdf.cell(8, 5, bn(i + 1) if i < 9 else bn(i + 1), align="R")
         pdf.set_y(y + box_h + 2.6)
 
     # closing
