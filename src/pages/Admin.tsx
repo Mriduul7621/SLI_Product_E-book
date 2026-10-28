@@ -81,6 +81,8 @@ export default function Admin() {
   const auth = useHub((s) => s.auth);
   const apiUrl = useHub((s) => s.settings.apiUrl);
   const config = useMemo(() => resolveConfig(auth), [auth]);
+  /** Once the sheet reports a configured admin, the PIN is no longer offered. */
+  const pinAllowed = !config || !auth.adminRequired;
 
   const [session, setSession] = useState<AdminSession | null>(() => currentAdmin());
   const [pinOk, setPinOk] = useState(() => sessionStorage.getItem(PIN_KEY) === "ok");
@@ -204,17 +206,19 @@ export default function Admin() {
             <p className="text-center text-[11px] text-charcoal-soft">
               অ্যাকাউন্ট: {config.domain ? `@${config.domain}` : "কোম্পানির M365"}
             </p>
-            <button
-              type="button"
-              className="mx-auto block text-[11.5px] font-semibold text-charcoal-soft hover:underline"
-              onClick={() => setShowPin((v) => !v)}
-            >
-              {showPin ? "পিন অপশন লুকান" : "সমস্যা হচ্ছে? পিন দিয়ে ঢুকুন"}
-            </button>
+            {pinAllowed ? (
+              <button
+                type="button"
+                className="mx-auto block text-[11.5px] font-semibold text-charcoal-soft hover:underline"
+                onClick={() => setShowPin((v) => !v)}
+              >
+                {showPin ? "পিন অপশন লুকান" : "সমস্যা হচ্ছে? পিন দিয়ে ঢুকুন"}
+              </button>
+            ) : null}
           </div>
         ) : null}
 
-        {!config || showPin ? (
+        {!config || (pinAllowed && showPin) ? (
           <form
             className="mt-5 space-y-3"
             onSubmit={(e) => {
