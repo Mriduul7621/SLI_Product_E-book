@@ -1,12 +1,17 @@
 {
-  "name": "react-vite-tailwind",
+  "name": "shanta-life-ebook",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "গল্পে গল্পে শিখি — শান্তা লাইফের বিমা প্রোডাক্ট | ফিল্ড ফোর্স ট্রেনিং ই-বুক",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "build:docx": "node scripts/generate-docx.mjs",
+    "build:pdf": "python3 scripts/build_pdf.py",
+    "build:book": "npm run build:docx && npm run build:pdf"
   },
   "dependencies": {
     "clsx": "2.1.1",
@@ -21,7 +26,6 @@
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.1",
-    "puppeteer": "^24.43.1",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",
     "vite": "7.3.2",

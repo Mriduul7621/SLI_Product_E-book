@@ -9,6 +9,9 @@ import {
   SectionShell,
   StoryCard,
 } from "./Cards";
+import { visualFor } from "@/data/visuals";
+import { salesPackFor, storyFor } from "@/data/sales";
+import { SalesPlaybook } from "./Mastery";
 
 // Loose typing to accommodate the varied JSON shapes across chapters.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,28 +19,46 @@ type AnyChapter = any;
 
 export default function Chapter({ chapter }: { chapter: AnyChapter }) {
   const exp = chapter.explanation ?? {};
-  const sectionLists: AnyChapter[] = [
-    ...(exp.sections ?? []),
-    ...(exp.sections2 ?? []),
-  ];
+  const sectionLists: AnyChapter[] = [...(exp.sections ?? []), ...(exp.sections2 ?? [])];
+  const visual = visualFor(chapter.id);
+  const story = storyFor(chapter.id);
+  const pack = salesPackFor(chapter.id);
 
   return (
-    <div className="space-y-10">
-      <SectionShell
-        id={chapter.id}
-        eyebrow={`অধ্যায় ${chapter.number} · ${chapter.titleEn}`}
-        title={chapter.titleBn}
-      >
-        <p className="mb-1 text-lg font-semibold text-emerald-700">{chapter.tagline}</p>
-        <p className="leading-relaxed text-slate-700">{chapter.intro}</p>
-      </SectionShell>
+    <article
+      aria-labelledby={`${chapter.id}-title`}
+      className="scroll-mt-24 space-y-7 border-t border-charcoal/10 pt-12 print-break-before"
+    >
+      <div id={`${chapter.id}-title`}>
+        <SectionShell
+          id={chapter.id}
+          number={chapter.number}
+          eyebrow={chapter.titleEn}
+          title={chapter.titleBn}
+          tagline={chapter.tagline}
+          visual={visual}
+        >
+          <p className="measure-wide text-[14px] leading-[1.95] text-charcoal-soft">{chapter.intro}</p>
+        </SectionShell>
+      </div>
 
-      {chapter.story && <StoryCard characters={chapter.story.characters} dialogue={chapter.story.dialogue} />}
+      {chapter.story && (
+        <StoryCard
+          characters={chapter.story.characters}
+          dialogue={story?.dialogue ?? chapter.story.dialogue}
+          setting={story?.setting}
+          aside={story?.aside}
+          aftermath={story?.aftermath}
+        />
+      )}
 
       <ExplanationCard>
         {exp.paramTable && (
           <div>
-            <h4 className="mb-3 text-base font-bold text-slate-900">প্রোডাক্টের মূল বৈশিষ্ট্যসমূহ</h4>
+            <h4 className="mb-3 flex items-center gap-2 text-[13px] font-extrabold uppercase tracking-[0.12em] text-charcoal">
+              <span className="h-3 w-[3px] bg-olive" aria-hidden="true" />
+              প্রোডাক্টের মূল বৈশিষ্ট্যসমূহ
+            </h4>
             <ParamTable headers={exp.paramTable.headers} rows={exp.paramTable.rows} />
           </div>
         )}
@@ -56,15 +77,21 @@ export default function Chapter({ chapter }: { chapter: AnyChapter }) {
 
         {exp.tierTable && (
           <div>
-            <h4 className="mb-3 text-base font-bold text-slate-900">টায়ার-ভিত্তিক তুলনা</h4>
+            <h4 className="mb-3 flex items-center gap-2 text-[13px] font-extrabold uppercase tracking-[0.12em] text-charcoal">
+              <span className="h-3 w-[3px] bg-olive" aria-hidden="true" />
+              টায়ার-ভিত্তিক তুলনা
+            </h4>
             <ParamTable headers={exp.tierTable.headers} rows={exp.tierTable.rows} />
           </div>
         )}
 
         {exp.riderTable && (
           <div>
-            <h4 className="mb-3 text-base font-bold text-slate-900">শান্তা লাইফের রাইডার ম্যাট্রিক্স</h4>
-            <ParamTable headers={exp.riderTable.headers} rows={exp.riderTable.rows} />
+            <h4 className="mb-3 flex items-center gap-2 text-[13px] font-extrabold uppercase tracking-[0.12em] text-charcoal">
+              <span className="h-3 w-[3px] bg-olive" aria-hidden="true" />
+              শান্তা লাইফের রাইডার ম্যাট্রিক্স
+            </h4>
+            <ParamTable headers={exp.riderTable.headers} rows={exp.riderTable.rows} dense />
           </div>
         )}
       </ExplanationCard>
@@ -83,6 +110,8 @@ export default function Chapter({ chapter }: { chapter: AnyChapter }) {
       {chapter.goldenRule && <GoldenRuleCard text={chapter.goldenRule} />}
 
       {chapter.bridge && <BridgeNote text={chapter.bridge} />}
-    </div>
+
+      {pack && <SalesPlaybook pack={pack} />}
+    </article>
   );
 }

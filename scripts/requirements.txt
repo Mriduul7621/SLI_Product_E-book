@@ -1,0 +1,4 @@
+# PDF builder dependencies (Bengali text shaping is done with HarfBuzz)
+fpdf2>=2.8
+uharfbuzz>=0.40
+pillow>=10
