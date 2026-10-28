@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "description": "গল্পে গল্পে শিখি — শান্তা লাইফের বিমা প্রোডাক্ট | ফিল্ড ফোর্স ট্রেনিং ই-বুক",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

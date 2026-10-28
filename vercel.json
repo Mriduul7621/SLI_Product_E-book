@@ -7,7 +7,11 @@
   "trailingSlash": false,
   "headers": [
     {
-      "source": "/(shanta-life-ebook\\.pdf|shanta-life-ebook\\.docx)",
+      "source": "/shanta-life-ebook.pdf",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+    },
+    {
+      "source": "/shanta-life-ebook.docx",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     },
     {

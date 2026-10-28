@@ -91,10 +91,13 @@ service** — a Vite build that outputs one self-contained `dist/index.html` plu
 | Install command | `npm ci` |
 | Build command | `npm run build` |
 | Output directory | `dist` |
-| Node runtime | any 20+ image (Vite 7 requires Node 20.19+ / 22.12+) |
+| Node version | `22.x` (pinned via `.nvmrc` + `package.json › engines`) |
 
 Import the repo in Vercel, keep the detected settings, and deploy — no environment
-variables and no build-time services are required.
+variables and no build-time services are required. Long-lived caching is only applied to
+`/assets/*` and `/fonts/*`; the two downloads are sent with
+`Cache-Control: public, max-age=0, must-revalidate` so a rebuilt PDF/DOCX appears
+immediately after a deploy.
 
 **Why there is no `services` block:** `scripts/` holds *offline generators*
 (`build_pdf.py`, `generate-docx.mjs`) that produce the PDF and Word files committed in
