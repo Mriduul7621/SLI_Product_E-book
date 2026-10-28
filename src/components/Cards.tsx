@@ -248,7 +248,7 @@ function FormulaBlock({ label, steps }: { label: string; steps: string[] }) {
             <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-olive/15 font-latin text-[10px] font-extrabold text-olive-deep">
               {i + 1}
             </span>
-            <span className="font-mono-bn">{s}</span>
+            <span className="tabular-nums">{s}</span>
           </li>
         ))}
       </ol>
