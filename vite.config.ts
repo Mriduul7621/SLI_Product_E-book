@@ -16,4 +16,17 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  server: {
+    host: "0.0.0.0",
+    port: 5173,
+    strictPort: true,
+    // The Arena preview proxies requests through https://<port>-<sandbox>.e2b.app
+    allowedHosts: [".e2b.app", "localhost"],
+    hmr: { clientPort: 443, protocol: "wss" },
+  },
+  preview: {
+    host: "0.0.0.0",
+    port: 4173,
+    allowedHosts: [".e2b.app", "localhost"],
+  },
 });
