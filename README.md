@@ -12,12 +12,16 @@ field story, plus a printable **PDF** and an editable **Word (DOCX)** edition.
 | Surface | Location | Notes |
 | --- | --- | --- |
 | Web e-book (React + Vite + Tailwind 4) | `src/` | Reading-first layout, sticky table of contents, reading progress, interactive quizzes |
-| Downloadable **PDF** (29 pages, A4) | `public/shanta-life-ebook.pdf` | Cover, title page, contents with real page numbers, chapter scene art, callouts, back cover |
-| Downloadable **Word** file | `public/shanta-life-ebook.docx` | Same structure/visuals, fully editable in MS Word / Google Docs |
+| Downloadable **PDF** (64 pages, A4) | `public/shanta-life-ebook.pdf` | Cover, title page, contents with real page numbers, chapter scene art, objection playbooks, hard-question mock bank, back cover |
+| Downloadable **Word** file | `public/shanta-life-ebook.docx` | Same structure/visuals; each chapter starts on a new page, chapter = Heading 1 / section = Heading 2, field-based automatic TOC, SDPP tier table on its own page |
 | Brand assets | `public/assets/img/` | Approved logo (colour + white), cover artwork, scene illustrations, field photos |
 | Bengali webfonts | `public/fonts/` | Self-hosted Noto Sans Bengali (400 / 600 / 700 / 800) |
 
-Text content is unchanged — only the design, visuals, structure and export pipeline were rebuilt.
+Content was extended (2026-10) on request: the field stories are now longer and warmer,
+and four new training banks were added — a need-based selling framework, a 7-step
+objection-handling method (LAER-PC), a 12-question hard mock-test bank, and a no-need
+ethics playbook. Every product figure in the new material is taken from the existing
+product chapters, never invented.
 
 ## 2. Brand compliance
 
