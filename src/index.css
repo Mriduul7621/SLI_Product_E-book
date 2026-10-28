@@ -65,11 +65,13 @@
   --color-shell-deep: #f3e7d6;
 
   --color-forest: #254525;
+  --color-forest-tint: #eef3ee;
   --color-plum: #583382;
   --color-plum-soft: #f1ecf7;
   --color-steel: #026a8b;
   --color-steel-soft: #e8f2f6;
   --color-clay: #7f2d23;
+  --color-clay-tint: #f6ece9;
 
   --shadow-book: 0 40px 80px -30px rgba(38, 38, 37, 0.55), 0 12px 28px -14px rgba(38, 38, 37, 0.4);
   --shadow-card: 0 1px 2px rgba(38, 38, 37, 0.04), 0 12px 28px -18px rgba(38, 38, 37, 0.28);

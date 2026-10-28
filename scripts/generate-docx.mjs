@@ -26,6 +26,7 @@ import {
   Table,
   TableCell,
   TableLayoutType,
+  TableOfContents,
   TableRow,
   TextRun,
   VerticalAlign,
@@ -37,6 +38,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const IMG = path.join(root, "public/assets/img");
 const data = JSON.parse(fs.readFileSync(path.join(root, "src/data/ebookContent.json"), "utf-8"));
+const salesDir = path.join(root, "src/data/sales");
+const readJson = (name) => JSON.parse(fs.readFileSync(path.join(salesDir, name), "utf-8"));
+const storyData = readJson("stories.json");
+const mastery = readJson("mastery.json");
+const salesPacks = {};
+["endowment", "s4pp", "scep", "sspe", "sdpp", "riders"].forEach((id) => {
+  salesPacks[id] = readJson(`${id}.json`);
+});
+const storyFor = (id) => (storyData.chapters || []).find((c) => c.chapterId === id);
 
 /* ------------------------------------------------------------------ tokens */
 const FONT = "Nirmala UI";
@@ -226,14 +236,29 @@ function calloutBox(title, items, { accent, fill, number = true, emoji = "" } = 
   return panel(children, { fill, bar: accent });
 }
 
-function storyBox(story) {
+function storyBox(story, extended) {
   const children = [
     para([run("০১ · গল্প (Story)", { size: 18, bold: true, color: OLIVE_DEEP })], { after: 80 }),
     para([run(`চরিত্র: ${story.characters}`, { size: 16, italics: true, color: CHARCOAL_SOFT })], {
-      after: 140,
+      after: 120,
     }),
   ];
-  story.dialogue.forEach((d) => {
+
+  if (extended?.setting) {
+    children.push(
+      para(
+        [
+          run("দৃশ্য: ", { size: 16, bold: true, color: OLIVE_DEEP }),
+          run(extended.setting, { size: 17, italics: true, color: CHARCOAL_SOFT }),
+        ],
+        { after: 160 },
+      ),
+    );
+  }
+
+  const dialogue = extended?.dialogue?.length ? extended.dialogue : story.dialogue;
+
+  dialogue.forEach((d) => {
     const narration = d.speaker === "বর্ণনা" || d.speaker === "ফলাফল";
     if (narration) {
       children.push(
@@ -249,7 +274,127 @@ function storyBox(story) {
       );
     }
   });
+
+  if (extended?.aside) {
+    children.push(
+      para(
+        [
+          run("🎯 কোচিং নোট: ", { size: 16, bold: true, color: OLIVE_DEEP }),
+          run(extended.aside, { size: 17, italics: true, color: OLIVE_DEEP }),
+        ],
+        { before: 120, after: 100 },
+      ),
+    );
+  }
+
+  if (extended?.aftermath) {
+    children.push(
+      para([run(extended.aftermath.title, { size: 17, bold: true, color: FOREST })], {
+        before: 120,
+        after: 60,
+      }),
+    );
+    children.push(para([run(extended.aftermath.text, { size: 17 })], { after: 0 }));
+  }
+
   return panel(children, { fill: SHELL, bar: OLIVE });
+}
+
+/* ---------------------------------------------------- sales playbook (chapter) */
+function objectionPanel(item, index) {
+  const steps = [
+    ["আসল ভয়", item.realFear, CHARCOAL_SOFT],
+    ["স্বীকৃতি", item.acknowledge, OLIVE_DEEP],
+    ["স্পষ্টীকরণ প্রশ্ন", item.clarify, OLIVE_DEEP],
+    ["উত্তর", item.respond, FOREST],
+    ["প্রমাণ", item.proof, CHARCOAL],
+    ["ক্লোজ", item.close, SUNSET_DEEP],
+  ].filter(([, value]) => Boolean(value));
+
+  const children = [
+    para([run(`${bn(index)}.  ${item.objection}`, { size: 18, bold: true, color: CLAY })], {
+      after: 120,
+    }),
+  ];
+
+  steps.forEach(([label, value, color]) => {
+    children.push(
+      para([run(label, { size: 14, bold: true, color, caps: true, spacing: 40 })], { after: 20 }),
+    );
+    children.push(para([run(value, { size: 17 })], { after: 100, indent: { left: 120 } }));
+  });
+
+  return panel(children, { fill: "FFFFFF", bar: CLAY });
+}
+
+function hardQuestionPanel(q, index) {
+  const children = [
+    para([run(`${bn(index)}. ${q.by || "মক টেস্ট"}`, { size: 14, bold: true, color: SUNSET_DEEP, caps: true, spacing: 40 })], {
+      after: 60,
+    }),
+    para([run(`“${q.question}”`, { size: 18, bold: true, color: CHARCOAL_DEEP })], { after: 120 }),
+  ];
+  if (q.trap) {
+    children.push(
+      para(
+        [run("⚠ ফাঁদ: ", { size: 16, bold: true, color: CLAY }), run(q.trap, { size: 17, color: CHARCOAL })],
+        { after: 90 },
+      ),
+    );
+  }
+  children.push(
+    para(
+      [run("✔ নিরাপদ উত্তর: ", { size: 16, bold: true, color: FOREST }), run(q.answer, { size: 17 })],
+      { after: 90 },
+    ),
+  );
+  if (q.data) {
+    children.push(
+      para([run(`📌 ${q.data}`, { size: 16, italics: true, color: CHARCOAL_SOFT })], { after: 0 }),
+    );
+  }
+  return panel(children, { fill: CLAY_SOFT, bar: CLAY });
+}
+
+function salesPackBlock(pack) {
+  if (!pack) return [];
+  const out = [];
+
+  if (pack.objections?.length) {
+    out.push(h2(pack.objectionTitle || "আপত্তি মোকাবেলা প্লেবুক", CLAY));
+    out.push(
+      P("প্রতিটি আপত্তির পেছনে একটি অকথিত ভয় থাকে। আগে ভয়টিকে চিহ্নিত করুন, তারপর স্বীকৃতি ও প্রমাণ দিন।", {
+        size: 17,
+        line: 320,
+      }),
+    );
+    pack.objections.forEach((o, i) => {
+      out.push(objectionPanel(o, i + 1));
+      out.push(spacer(160));
+    });
+  }
+
+  if (pack.hardQuestions?.length) {
+    out.push(h2("কঠিন প্রশ্নের মক টেস্ট (এই অধ্যায়)", CLAY));
+    pack.hardQuestions.forEach((q, i) => {
+      out.push(hardQuestionPanel(q, i + 1));
+      out.push(spacer(160));
+    });
+  }
+
+  if (pack.misconceptions?.length) {
+    out.push(h2("ভুল ধারণা ভাঙা", CLAY));
+    out.push(
+      dataTable(
+        ["প্রচলিত ভুল ধারণা", "সঠিক তথ্য"],
+        pack.misconceptions.map((m) => [m.myth, m.truth]),
+        { widths: [42, 58], fontSize: 14 },
+      ),
+    );
+    out.push(spacer(160));
+  }
+
+  return out;
 }
 
 function quizBox(quiz, label) {
@@ -398,19 +543,19 @@ function chapterSection(ch) {
   children.push(P(ch.intro, { size: 19, line: 340 }), spacer(100));
 
   if (ch.story) {
-    children.push(storyBox(ch.story), spacer(180));
+    children.push(storyBox(ch.story, storyFor(ch.id)), spacer(180));
     children.push(P("০২ · সহজ ব্যাখ্যা (Simple Explanation)", { size: 18, bold: true, color: SUNSET_DEEP }), spacer(60));
   }
 
   const exp = ch.explanation || {};
   if (exp.paramTable) {
-    children.push(h3("প্রোডাক্টের মূল বৈশিষ্ট্যসমূহ", OLIVE_DEEP));
+    children.push(h2("প্রোডাক্টের মূল বৈশিষ্ট্যসমূহ", OLIVE_DEEP));
     children.push(dataTable(exp.paramTable.headers, exp.paramTable.rows, { widths: [34, 66] }));
     children.push(spacer(140));
   }
 
   [...(exp.sections || []), ...(exp.sections2 || [])].forEach((sec) => {
-    if (sec.heading) children.push(h3(sec.heading));
+    if (sec.heading) children.push(h2(sec.heading));
     (sec.paragraphs || []).forEach((p) => children.push(P(p, { size: 19, line: 340 })));
     (sec.bullets || []).forEach((b) =>
       children.push(
@@ -445,15 +590,25 @@ function chapterSection(ch) {
     }
   });
 
+  /* Tier / charge tables get a page of their own so no row is ever split. */
   if (exp.tierTable) {
-    children.push(h3("টায়ার-ভিত্তিক তুলনা", OLIVE_DEEP));
-    children.push(dataTable(exp.tierTable.headers, exp.tierTable.rows, { fontSize: 14 }));
-    children.push(spacer(140));
+    children.push(new Paragraph({ children: [new PageBreak()] }));
+    children.push(h2("SDPP টায়ার-ভিত্তিক তুলনা (পূর্ণ পৃষ্ঠা)", OLIVE_DEEP));
+    children.push(
+      P("নিচের টেবিলটি এক পৃষ্ঠায় সম্পূর্ণ রাখা হয়েছে — প্রশিক্ষণে হাতে ধরিয়ে দেওয়ার জন্য।", {
+        size: 16,
+        italics: true,
+        color: CHARCOAL_SOFT,
+      }),
+    );
+    children.push(dataTable(exp.tierTable.headers, exp.tierTable.rows, { fontSize: 15 }));
+    children.push(spacer(160));
   }
   if (exp.riderTable) {
-    children.push(h3("শান্তা লাইফের রাইডার ম্যাট্রিক্স", OLIVE_DEEP));
-    children.push(dataTable(exp.riderTable.headers, exp.riderTable.rows, { fontSize: 13 }));
-    children.push(spacer(140));
+    children.push(new Paragraph({ children: [new PageBreak()] }));
+    children.push(h2("শান্তা লাইফের রাইডার ম্যাট্রিক্স (পূর্ণ পৃষ্ঠা)", OLIVE_DEEP));
+    children.push(dataTable(exp.riderTable.headers, exp.riderTable.rows, { fontSize: 14 }));
+    children.push(spacer(160));
   }
 
   if (ch.redAlerts) {
@@ -477,8 +632,10 @@ function chapterSection(ch) {
 
   if (ch.bridge) {
     children.push(bridgeBox(ch.bridge));
-    children.push(spacer(120));
+    children.push(spacer(140));
   }
+
+  children.push(...salesPackBlock(salesPacks[ch.id]));
 
   return children;
 }
@@ -528,6 +685,29 @@ children.push(
   ),
 );
 
+/* ---- table of contents (field-based: Word fills it on open) ---- */
+children.push(
+  para([run("Contents", { size: 14, bold: true, color: OLIVE_DEEP, caps: true, spacing: 40 })], {
+    pageBreakBefore: true,
+    after: 80,
+  }),
+);
+children.push(h1("সূচিপত্র"));
+children.push(
+  P("এই সূচিপত্র স্বয়ংক্রিয় (automatic) — Word খোলার সময় সব শিরোনাম ও পৃষ্ঠা নম্বর নিজেই তৈরি হয়ে যাবে। মাইক্রোসফট ওয়ার্ডে Ctrl+A চেপে F9 দিলে সূচি হালনাগাদ হবে।", {
+    size: 16,
+    italics: true,
+    color: CHARCOAL_SOFT,
+  }),
+);
+children.push(spacer(120));
+children.push(
+  new TableOfContents("সূচিপত্র", {
+    hyperlink: true,
+    headingStyleRange: "1-2",
+  }),
+);
+
 /* ---- introduction ---- */
 children.push(
   para([run("Introduction · Learning Framework", { size: 14, bold: true, color: OLIVE_DEEP, caps: true, spacing: 40 })], {
@@ -553,9 +733,140 @@ children.push(P(data.introduction.closing, { size: 19, line: 340 }));
 /* ---- chapters ---- */
 data.chapters.forEach((ch) => children.push(...chapterSection(ch)));
 
+/* ---- appendix · need-based selling ---- */
+children.push(
+  para([run("Appendix A · Sales Mastery", { size: 14, bold: true, color: OLIVE_DEEP, caps: true, spacing: 40 })], {
+    pageBreakBefore: true,
+    after: 80,
+  }),
+);
+children.push(h1(mastery.needBased.heading));
+children.push(para([run(mastery.needBased.tagline, { size: 20, bold: true, color: SUNSET_DEEP })], { after: 200 }));
+children.push(P(mastery.needBased.intro, { size: 18, line: 340 }));
+children.push(spacer(120));
+mastery.needBased.steps.forEach((step) => {
+  children.push(
+    panel(
+      [
+        para([run(`${step.step} · ${step.title}`, { size: 18, bold: true, color: OLIVE_DEEP })], { after: 80 }),
+        para([run(step.text, { size: 17 })], { after: 90 }),
+        para([run(`“${step.script}”`, { size: 17, italics: true, color: SUNSET_DEEP })], { after: 0 }),
+      ],
+      { fill: "FFFFFF", bar: OLIVE },
+    ),
+  );
+  children.push(spacer(140));
+});
+children.push(h2("প্রশ্ন-ব্যাংক: যা জিজ্ঞেস করলেই গ্রাহক খুলে যান"));
+children.push(
+  dataTable(
+    ["বিষয়", "প্রশ্ন"],
+    mastery.needBased.questions.map((q) => [q.group, q.question]),
+    { widths: [22, 78], fontSize: 14 },
+  ),
+);
+
+/* ---- appendix · objection method ---- */
+children.push(
+  para([run("Appendix B · Objection Handling", { size: 14, bold: true, color: OLIVE_DEEP, caps: true, spacing: 40 })], {
+    pageBreakBefore: true,
+    after: 80,
+  }),
+);
+children.push(h1(mastery.objectionMethod.heading));
+children.push(para([run(mastery.objectionMethod.tagline, { size: 20, bold: true, color: SUNSET_DEEP })], { after: 200 }));
+children.push(P(mastery.objectionMethod.intro, { size: 18, line: 340 }));
+children.push(spacer(120));
+mastery.objectionMethod.steps.forEach((step) => {
+  children.push(
+    panel(
+      [
+        para([run(`${step.key} · ${step.title}`, { size: 18, bold: true, color: CHARCOAL_DEEP })], { after: 70 }),
+        para([run(step.text, { size: 17 })], { after: 80 }),
+        para([run(`“${step.script}”`, { size: 17, italics: true, color: SUNSET_DEEP })], { after: 0 }),
+      ],
+      { fill: SHELL, bar: SUNSET },
+    ),
+  );
+  children.push(spacer(120));
+});
+children.push(
+  calloutBox("পাঁচটি অলঙ্ঘনীয় নিয়ম", mastery.objectionMethod.rules, {
+    accent: CLAY,
+    fill: CLAY_SOFT,
+    emoji: "🚨",
+  }),
+);
+
+/* ---- appendix · hard question bank ---- */
+children.push(
+  para([run("Appendix C · Mock Test Bank", { size: 14, bold: true, color: OLIVE_DEEP, caps: true, spacing: 40 })], {
+    pageBreakBefore: true,
+    after: 80,
+  }),
+);
+children.push(h1(mastery.mockTest.heading));
+children.push(para([run(mastery.mockTest.tagline, { size: 20, bold: true, color: SUNSET_DEEP })], { after: 200 }));
+children.push(P(mastery.mockTest.intro, { size: 18, line: 340 }));
+children.push(spacer(120));
+children.push(
+  dataTable(
+    ["স্তর", "ধরন", "বিবরণ"],
+    mastery.mockTest.levels.map((l) => [l.level, l.title, l.text]),
+    { widths: [15, 30, 55], fontSize: 14 },
+  ),
+);
+children.push(spacer(180));
+mastery.mockTest.questions.forEach((q, i) => {
+  children.push(hardQuestionPanel({ ...q, by: `${q.level} · ${q.by}` }, i + 1));
+  children.push(spacer(150));
+});
+
+/* ---- appendix · no-need ethics ---- */
+children.push(
+  para([run("Appendix D · No-Need Ethics", { size: 14, bold: true, color: OLIVE_DEEP, caps: true, spacing: 40 })], {
+    pageBreakBefore: true,
+    after: 80,
+  }),
+);
+children.push(h1(mastery.noNeed.heading));
+children.push(para([run(mastery.noNeed.tagline, { size: 20, bold: true, color: SUNSET_DEEP })], { after: 200 }));
+children.push(P(mastery.noNeed.intro, { size: 18, line: 340 }));
+children.push(spacer(120));
+mastery.noNeed.steps.forEach((step) => {
+  children.push(
+    panel(
+      [
+        para([run(`${step.step} · ${step.title}`, { size: 18, bold: true, color: FOREST })], { after: 80 }),
+        para([run(step.text, { size: 17 })], { after: 90 }),
+        para([run(`“${step.script}”`, { size: 17, italics: true, color: FOREST })], { after: 0 }),
+      ],
+      { fill: FOREST_SOFT, bar: FOREST },
+    ),
+  );
+  children.push(spacer(140));
+});
+children.push(h2("আগের ভুল ধারণা পরিষ্কার করা"));
+children.push(
+  dataTable(
+    ["যা মানুষ ভাবেন", "আসলে কী"],
+    mastery.noNeed.misbeliefs.map((m) => [m.myth, m.truth]),
+    { widths: [40, 60], fontSize: 14 },
+  ),
+);
+children.push(spacer(160));
+children.push(
+  calloutBox(mastery.noNeed.closing.title, mastery.noNeed.closing.lines, {
+    accent: OLIVE_DEEP,
+    fill: OLIVE_TINT,
+    number: false,
+    emoji: "★",
+  }),
+);
+
 /* ---- quick reference ---- */
 children.push(
-  para([run("Appendix A · Quick Reference", { size: 14, bold: true, color: OLIVE_DEEP, caps: true, spacing: 40 })], {
+  para([run("Appendix E · Quick Reference", { size: 14, bold: true, color: OLIVE_DEEP, caps: true, spacing: 40 })], {
     pageBreakBefore: true,
     after: 80,
   }),
@@ -577,7 +888,7 @@ children.push(
 
 /* ---- master assessment ---- */
 children.push(
-  para([run("Appendix B · Master Assessment", { size: 14, bold: true, color: OLIVE_DEEP, caps: true, spacing: 40 })], {
+  para([run("Appendix F · Master Assessment", { size: 14, bold: true, color: OLIVE_DEEP, caps: true, spacing: 40 })], {
     pageBreakBefore: true,
     after: 80,
   }),
@@ -592,7 +903,7 @@ data.masterAssessment.questions.forEach((q, i) => {
 
 /* ---- ethics ---- */
 children.push(
-  para([run("Appendix C · Field Ethics", { size: 14, bold: true, color: OLIVE_DEEP, caps: true, spacing: 40 })], {
+  para([run("Appendix G · Field Ethics", { size: 14, bold: true, color: OLIVE_DEEP, caps: true, spacing: 40 })], {
     pageBreakBefore: true,
     after: 80,
   }),
@@ -675,6 +986,9 @@ const doc = new Document({
   title: data.meta.titleBn,
   subject: "ফিল্ড ফোর্স প্রশিক্ষণ ই-বুক",
   description: "গল্পে গল্পে শিখি — শান্তা লাইফের বিমা প্রোডাক্ট",
+  features: {
+    updateFields: true,
+  },
   styles: {
     default: {
       document: {

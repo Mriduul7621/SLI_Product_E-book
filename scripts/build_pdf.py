@@ -28,6 +28,17 @@ FONTS = Path(__file__).resolve().parent / "fonts"
 IMG = ROOT / "public/assets/img"
 OUT = ROOT / "public/shanta-life-ebook.pdf"
 
+SALES_DIR = ROOT / "src/data/sales"
+STORIES = {
+    entry["chapterId"]: entry
+    for entry in json.loads((SALES_DIR / "stories.json").read_text(encoding="utf-8"))["chapters"]
+}
+MASTERY = json.loads((SALES_DIR / "mastery.json").read_text(encoding="utf-8"))
+SALES = {
+    cid: json.loads((SALES_DIR / f"{cid}.json").read_text(encoding="utf-8"))
+    for cid in ("endowment", "s4pp", "scep", "sspe", "sdpp", "riders")
+}
+
 # ----------------------------------------------------------------- brand ---
 CHARCOAL = (60, 60, 59)
 CHARCOAL_DEEP = (38, 38, 37)
@@ -481,6 +492,45 @@ class Book(FPDF):
         self.multi_cell(CW, 4.4, caption, align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.ln(3.4)
 
+    def stacked_panel(self, rows: list[dict], fill, bar=None, pad: float = 5.0) -> None:
+        """Panel made of label/text blocks, measured exactly before drawing."""
+        inner = CW - pad * 2
+        measured = []
+        for row in rows:
+            size = row.get("size", 8.6)
+            label = row.get("label") or ""
+            label_h = 0.0
+            if label:
+                self.set_font("bn", "B", size - 0.2)
+                label_h = self.multi_cell(inner, 4.6, label, dry_run=True, output="HEIGHT", align="L")
+            self.set_font("bn", "B" if row.get("bold") else "", size)
+            text_h = self.multi_cell(inner, row.get("line", 4.9), row.get("text", ""),
+                                     dry_run=True, output="HEIGHT", align="L")
+            measured.append((label_h, text_h))
+        total = pad * 2 + sum(lh + th + 1.3 for lh, th in measured) + 1.2
+        self.will_page_break(total + 2)
+        y0 = self.get_y()
+        if y0 + total > PAGE_H - MB:
+            self.add_page()
+            y0 = self.get_y()
+        self.panel(ML, y0, CW, total, fill, bar=bar)
+        y = y0 + pad - 1.0
+        for row, (label_h, text_h) in zip(rows, measured):
+            size = row.get("size", 8.6)
+            label = row.get("label") or ""
+            if label:
+                self.set_xy(ML + pad, y)
+                self.set_font("bn", "B", size - 0.2)
+                self.set_text_color(*row.get("lcolor", CHARCOAL_SOFT))
+                self.multi_cell(inner, 4.6, label, align="L")
+                y += label_h + 0.5
+            self.set_xy(ML + pad, y)
+            self.set_font("bn", "B" if row.get("bold") else "", size)
+            self.set_text_color(*row.get("tcolor", INK))
+            self.multi_cell(inner, row.get("line", 4.9), row.get("text", ""), align="L")
+            y += text_h + 1.3
+        self.set_y(y0 + total + 3.0)
+
     def table(self, headers: list[str], rows: list[list[str]], widths: list[float] | None = None,
               font_size: float = 8.0) -> None:
         n = len(headers)
@@ -854,7 +904,19 @@ def draw_chapter(pdf: Book, chapter: dict) -> int:
     # story
     pdf.ln(2)
     story = chapter.get("story") or {}
-    dialogue = story.get("dialogue", [])
+    ext = STORIES.get(cid, {})
+    dialogue = ext.get("dialogue") or story.get("dialogue", [])
+    if ext.get("setting"):
+        pdf.will_page_break(18)
+        pdf.ln(1.2)
+        pdf.set_x(ML)
+        pdf.set_font("bn", "B", 8.4)
+        pdf.set_text_color(*OLIVE_DEEP)
+        pdf.write(4.9, "দৃশ্য: ")
+        pdf.set_font("bn", "", 8.6)
+        pdf.set_text_color(*CHARCOAL_SOFT)
+        pdf.multi_cell(CW, 4.9, ext["setting"], align="L")
+        pdf.ln(2.2)
     if dialogue:
         pad = 5.0
         inner = CW - pad * 2
@@ -923,6 +985,23 @@ def draw_chapter(pdf: Book, chapter: dict) -> int:
             print(f"[story] allocated={total:.1f} used={pdf.get_y()-y0:.1f}")
         pdf.set_y(y0 + min(total, PAGE_H - MB - y0) + 2.4)
 
+    if ext.get("aside"):
+        pdf.stacked_panel(
+            [{"label": "🎯 কোচিং নোট", "text": ext["aside"], "lcolor": OLIVE_DEEP,
+              "tcolor": OLIVE_DEEP, "size": 8.4, "line": 4.8}],
+            OLIVE_WASH,
+            bar=OLIVE,
+        )
+        pdf.ln(1.0)
+    if ext.get("aftermath"):
+        pdf.stacked_panel(
+            [{"label": ext["aftermath"]["title"], "text": ext["aftermath"]["text"],
+              "lcolor": FOREST, "tcolor": INK, "size": 8.6}],
+            FOREST_SOFT,
+            bar=FOREST,
+        )
+        pdf.ln(1.0)
+
     # explanation
     exp = chapter.get("explanation", {})
     if PAGE_H - MB - pdf.get_y() < 118:
@@ -985,15 +1064,21 @@ def draw_chapter(pdf: Book, chapter: dict) -> int:
                 pdf.ln(2.4)
 
     for table_key, label in (
-        ("tierTable", "টায়ার-ভিত্তিক তুলনা"),
-        ("riderTable", "শান্তা লাইফের রাইডার ম্যাট্রিক্স"),
+        ("tierTable", "SDPP টায়ার-ভিত্তিক তুলনা (পূর্ণ পৃষ্ঠা)"),
+        ("riderTable", "শান্তা লাইফের রাইডার ম্যাট্রিক্স (পূর্ণ পৃষ্ঠা)"),
     ):
         if exp.get(table_key):
+            # Charge / tier tables are isolated so no row is ever split across pages.
+            pdf.add_page()
             pdf.sub_heading(label)
+            pdf.set_font("bn", "", 8.2)
+            pdf.set_text_color(*CHARCOAL_SOFT)
+            pdf.multi_cell(CW, 4.8, "টেবিলটি এক পৃষ্ঠায় সম্পূর্ণ রাখা হয়েছে — প্রশিক্ষণে হাতে ধরিয়ে দেওয়ার জন্য।", align="L")
+            pdf.ln(2.0)
             pdf.table(
                 exp[table_key]["headers"],
                 exp[table_key]["rows"],
-                font_size=7.4,
+                font_size=7.8,
             )
 
     # red alerts
@@ -1111,7 +1196,247 @@ def draw_chapter(pdf: Book, chapter: dict) -> int:
         pdf.set_text_color(*CHARCOAL)
         pdf.multi_cell(CW - pad * 2, 5.2, chapter["bridge"], align="L")
         pdf.set_y(y0 + h + 3.4)
+
+    draw_sales_pack(pdf, SALES.get(cid))
     return start_page
+
+
+# ---------------------------------------------------------- sales playbook ---
+def section_banner(pdf: Book, kicker: str, title: str, tagline: str = "", accent=CLAY) -> None:
+    pdf.will_page_break(30)
+    pdf.ln(2.0)
+    pdf.set_font("bns", "B", 6.6)
+    pdf.set_text_color(*accent)
+    pdf.cell(120, 4.2, kicker.upper(), align="L")
+    pdf.ln(5.0)
+    pdf.set_font("bn", "B", 13.4)
+    pdf.set_text_color(*CHARCOAL_DEEP)
+    pdf.multi_cell(CW, 7.2, title, align="L")
+    if tagline:
+        pdf.set_x(ML)
+        pdf.set_font("bn", "B", 8.6)
+        pdf.set_text_color(*SUNSET_DEEP)
+        pdf.multi_cell(CW, 5.0, tagline, align="L")
+    pdf.ln(1.0)
+    pdf.set_fill_color(*OLIVE)
+    pdf.rect(ML, pdf.get_y(), 22, 1.2, RenderStyle.F)
+    pdf.set_fill_color(*SUNSET)
+    pdf.rect(ML + 22, pdf.get_y(), 11, 1.2, RenderStyle.F)
+    pdf.ln(5.0)
+
+
+def draw_sales_pack(pdf: Book, pack: dict) -> None:
+    if not pack:
+        return
+    objections = pack.get("objections") or []
+    if objections:
+        pdf.running_label = "SALES PLAYBOOK · OBJECTION HANDLING"
+        pdf.add_page()
+        section_banner(
+            pdf,
+            "Sales Mastery · Field Playbook",
+            pack.get("objectionTitle", "আপত্তি মোকাবেলা প্লেবুক"),
+            "প্রতিটি আপত্তির পেছনে একটি অকথিত ভয় থাকে — আগে ভয়টিকে চিহ্নিত করুন, তারপর স্বীকৃতি ও প্রমাণ দিন।",
+        )
+        for i, item in enumerate(objections, start=1):
+            rows = [{
+                "label": "",
+                "text": f"{bn(i)}. “{item['objection']}”",
+                "lcolor": CLAY,
+                "tcolor": CLAY,
+                "bold": True,
+                "size": 9.0,
+                "line": 5.2,
+            }]
+            for key, label, color in (
+                ("realFear", "আসল ভয়", CHARCOAL_SOFT),
+                ("acknowledge", "স্বীকৃতি", OLIVE_DEEP),
+                ("clarify", "স্পষ্টীকরণ প্রশ্ন", OLIVE_DEEP),
+                ("respond", "উত্তর", FOREST),
+                ("proof", "প্রমাণ", CHARCOAL),
+                ("close", "ক্লোজ", SUNSET_DEEP),
+            ):
+                if item.get(key):
+                    rows.append({
+                        "label": label,
+                        "text": item[key],
+                        "lcolor": color,
+                        "tcolor": INK,
+                        "size": 8.5,
+                    })
+            pdf.stacked_panel(rows, WHITE, bar=CLAY)
+            pdf.ln(1.2)
+
+    hard = pack.get("hardQuestions") or []
+    if hard:
+        section_banner(pdf, "Mock Test · Chapter Level", "কঠিন প্রশ্নের মক টেস্ট (এই অধ্যায়)", "", accent=SUNSET_DEEP)
+        for i, q in enumerate(hard, start=1):
+            rows = [{
+                "label": f"{bn(i)} · {q.get('by', 'মক টেস্ট')}",
+                "text": f"“{q['question']}”",
+                "lcolor": SUNSET_DEEP,
+                "tcolor": CHARCOAL_DEEP,
+                "bold": True,
+                "size": 9.0,
+                "line": 5.2,
+            }]
+            if q.get("trap"):
+                rows.append({"label": "⚠ ফাঁদ", "text": q["trap"], "lcolor": CLAY, "tcolor": INK, "size": 8.5})
+            rows.append({"label": "✔ নিরাপদ উত্তর", "text": q["answer"], "lcolor": FOREST, "tcolor": INK, "size": 8.5})
+            if q.get("data"):
+                rows.append({"label": "📌 তথ্যসূত্র", "text": q["data"], "lcolor": CHARCOAL_SOFT,
+                             "tcolor": CHARCOAL_SOFT, "size": 8.2})
+            pdf.stacked_panel(rows, CLAY_SOFT, bar=CLAY)
+            pdf.ln(1.2)
+
+    myths = pack.get("misconceptions") or []
+    if myths:
+        section_banner(pdf, "Misconception → Truth", "ভুল ধারণা ভাঙা", "", accent=CLAY)
+        pdf.table(
+            ["প্রচলিত ভুল ধারণা", "সঠিক তথ্য"],
+            [[m["myth"], m["truth"]] for m in myths],
+            widths=[42, 58],
+            font_size=7.6,
+        )
+
+
+# --------------------------------------------------------- mastery appendix ---
+def draw_mastery_need_based(pdf: Book) -> int:
+    data = MASTERY["needBased"]
+    pdf.running_label = "APPENDIX A · NEED-BASED SELLING"
+    pdf.add_page()
+    page = pdf.page_no()
+    section_banner(pdf, "Appendix A · Sales Mastery", data["heading"], data["tagline"], accent=OLIVE_DEEP)
+    pdf.body(data["intro"], size=9.0)
+    pdf.ln(1.0)
+    for step in data["steps"]:
+        pdf.stacked_panel(
+            [
+                {"label": f"ধাপ {step['step']}", "text": step["title"], "lcolor": OLIVE_DEEP,
+                 "tcolor": CHARCOAL_DEEP, "bold": True, "size": 9.2, "line": 5.2},
+                {"label": "", "text": step["text"], "tcolor": INK, "size": 8.7},
+                {"label": "বলার ধরন", "text": f"“{step['script']}”", "lcolor": SUNSET_DEEP,
+                 "tcolor": SUNSET_DEEP, "size": 8.5},
+            ],
+            WHITE,
+            bar=OLIVE,
+        )
+        pdf.ln(1.2)
+    pdf.sub_heading("প্রশ্ন-ব্যাংক: যা জিজ্ঞেস করলেই গ্রাহক খুলে যান", OLIVE_DEEP)
+    pdf.table(
+        ["বিষয়", "প্রশ্ন"],
+        [[q["group"], q["question"]] for q in data["questions"]],
+        widths=[24, 76],
+        font_size=7.6,
+    )
+    return page
+
+
+def draw_mastery_objection_method(pdf: Book) -> int:
+    data = MASTERY["objectionMethod"]
+    pdf.running_label = "APPENDIX B · OBJECTION HANDLING"
+    pdf.add_page()
+    page = pdf.page_no()
+    section_banner(pdf, "Appendix B · Objection Handling", data["heading"], data["tagline"], accent=SUNSET_DEEP)
+    pdf.body(data["intro"], size=9.0)
+    pdf.ln(1.0)
+    for step in data["steps"]:
+        pdf.stacked_panel(
+            [
+                {"label": step["key"], "text": step["title"], "lcolor": CHARCOAL,
+                 "tcolor": CHARCOAL_DEEP, "bold": True, "size": 9.2, "line": 5.2},
+                {"label": "", "text": step["text"], "tcolor": INK, "size": 8.7},
+                {"label": "বলার ধরন", "text": f"“{step['script']}”", "lcolor": SUNSET_DEEP,
+                 "tcolor": SUNSET_DEEP, "size": 8.5},
+            ],
+            SHELL,
+            bar=SUNSET,
+        )
+        pdf.ln(1.0)
+    pdf.callout(
+        "পাঁচটি অলঙ্ঘনীয় নিয়ম",
+        data["rules"],
+        accent=CLAY,
+        fill=CLAY_SOFT,
+        text_color=(92, 42, 34),
+        numbered=False,
+        icon="🚨",
+    )
+    return page
+
+
+def draw_mastery_mock_tests(pdf: Book) -> int:
+    data = MASTERY["mockTest"]
+    pdf.running_label = "APPENDIX C · MOCK TEST BANK"
+    pdf.add_page()
+    page = pdf.page_no()
+    section_banner(pdf, "Appendix C · Mock Test Bank", data["heading"], data["tagline"], accent=CLAY)
+    pdf.body(data["intro"], size=9.0)
+    pdf.ln(0.6)
+    pdf.table(
+        ["স্তর", "ধরন", "বিবরণ"],
+        [[lvl["level"], lvl["title"], lvl["text"]] for lvl in data["levels"]],
+        widths=[14, 28, 58],
+        font_size=7.6,
+    )
+    for i, q in enumerate(data["questions"], start=1):
+        rows = [{
+            "label": f"{bn(i)} · {q.get('level', '')} · {q.get('by', '')}",
+            "text": f"“{q['question']}”",
+            "lcolor": SUNSET_DEEP,
+            "tcolor": CHARCOAL_DEEP,
+            "bold": True,
+            "size": 9.0,
+            "line": 5.2,
+        }]
+        if q.get("trap"):
+            rows.append({"label": "⚠ ফাঁদ", "text": q["trap"], "lcolor": CLAY, "tcolor": INK, "size": 8.5})
+        rows.append({"label": "✔ উত্তর", "text": q["answer"], "lcolor": FOREST, "tcolor": INK, "size": 8.5})
+        if q.get("data"):
+            rows.append({"label": "📌 তথ্যসূত্র", "text": q["data"], "lcolor": CHARCOAL_SOFT,
+                         "tcolor": CHARCOAL_SOFT, "size": 8.2})
+        pdf.stacked_panel(rows, CLAY_SOFT, bar=CLAY)
+        pdf.ln(1.2)
+    return page
+
+
+def draw_mastery_no_need(pdf: Book) -> int:
+    data = MASTERY["noNeed"]
+    pdf.running_label = "APPENDIX D · NO-NEED ETHICS"
+    pdf.add_page()
+    page = pdf.page_no()
+    section_banner(pdf, "Appendix D · No-Need Ethics", data["heading"], data["tagline"], accent=FOREST)
+    pdf.body(data["intro"], size=9.0)
+    pdf.ln(1.0)
+    for step in data["steps"]:
+        pdf.stacked_panel(
+            [
+                {"label": f"ধাপ {step['step']}", "text": step["title"], "lcolor": FOREST,
+                 "tcolor": CHARCOAL_DEEP, "bold": True, "size": 9.2, "line": 5.2},
+                {"label": "", "text": step["text"], "tcolor": INK, "size": 8.7},
+                {"label": "বলার ধরন", "text": f"“{step['script']}”", "lcolor": FOREST,
+                 "tcolor": FOREST, "size": 8.5},
+            ],
+            FOREST_SOFT,
+            bar=FOREST,
+        )
+        pdf.ln(1.0)
+    pdf.sub_heading("আগের ভুল ধারণা পরিষ্কার করা", FOREST)
+    pdf.table(
+        ["যা মানুষ ভাবেন", "আসলে কী"],
+        [[m["myth"], m["truth"]] for m in data["misbeliefs"]],
+        widths=[40, 60],
+        font_size=7.6,
+    )
+    pdf.stacked_panel(
+        [{"label": data["closing"]["title"], "text": "•  " + data["closing"]["lines"][0],
+          "lcolor": OLIVE_DEEP, "tcolor": INK, "size": 8.7}]
+        + [{"label": "", "text": "•  " + line, "tcolor": INK, "size": 8.7}
+           for line in data["closing"]["lines"][1:]],
+        OLIVE_TINT,
+        bar=OLIVE,
+    )
+    return page
 
 
 # ------------------------------------------------------------------ back ---
@@ -1186,10 +1511,14 @@ def build(toc_pages: list[int] | None, out: Path) -> list[int]:
     for ch in DATA["chapters"]:
         entries.append((ch["number"], ch["titleBn"], "chapter"))
     entries += [
-        ("০৮", DATA["quickReference"]["heading"], "appendix"),
-        ("০৯", DATA["masterAssessment"]["heading"], "appendix"),
-        ("১০", DATA["ethicsChecklist"]["heading"], "appendix"),
-        ("১১", "উপসংহার", "appendix"),
+        ("০৮", MASTERY["needBased"]["heading"], "appendix"),
+        ("০৯", MASTERY["objectionMethod"]["heading"], "appendix"),
+        ("১০", MASTERY["mockTest"]["heading"], "appendix"),
+        ("১১", MASTERY["noNeed"]["heading"], "appendix"),
+        ("১২", DATA["quickReference"]["heading"], "appendix"),
+        ("১৩", DATA["masterAssessment"]["heading"], "appendix"),
+        ("১৪", DATA["ethicsChecklist"]["heading"], "appendix"),
+        ("১৫", "উপসংহার", "appendix"),
     ]
 
     draw_toc(pdf, entries, toc_pages)
@@ -1197,8 +1526,8 @@ def build(toc_pages: list[int] | None, out: Path) -> list[int]:
     pages: list[int] = []
 
     # introduction
-    pdf.add_page()
     pdf.running_label = "INTRODUCTION"
+    pdf.add_page()
     pages.append(pdf.page_no())
     y = pdf.get_y()
     pdf.set_fill_color(*OLIVE)
@@ -1280,13 +1609,19 @@ def build(toc_pages: list[int] | None, out: Path) -> list[int]:
     for ch in DATA["chapters"]:
         pages.append(draw_chapter(pdf, ch))
 
+    # sales mastery appendices
+    pages.append(draw_mastery_need_based(pdf))
+    pages.append(draw_mastery_objection_method(pdf))
+    pages.append(draw_mastery_mock_tests(pdf))
+    pages.append(draw_mastery_no_need(pdf))
+
     # quick reference
+    pdf.running_label = "APPENDIX E · QUICK REFERENCE"
     pdf.add_page()
-    pdf.running_label = "APPENDIX A · QUICK REFERENCE"
     pages.append(pdf.page_no())
     pdf.set_font("bns", "B", 7.0)
     pdf.set_text_color(*OLIVE_DEEP)
-    pdf.cell(80, 5, "APPENDIX A", align="L")
+    pdf.cell(80, 5, "APPENDIX E", align="L")
     pdf.ln(7)
     pdf.set_font("bn", "B", 17)
     pdf.set_text_color(*CHARCOAL_DEEP)
@@ -1306,12 +1641,12 @@ def build(toc_pages: list[int] | None, out: Path) -> list[int]:
     )
 
     # master assessment
+    pdf.running_label = "APPENDIX F · MASTER ASSESSMENT"
     pdf.add_page()
-    pdf.running_label = "APPENDIX B · MASTER ASSESSMENT"
     pages.append(pdf.page_no())
     pdf.set_font("bns", "B", 7.0)
     pdf.set_text_color(*OLIVE_DEEP)
-    pdf.cell(80, 5, "APPENDIX B", align="L")
+    pdf.cell(80, 5, "APPENDIX F", align="L")
     pdf.ln(7)
     pdf.set_font("bn", "B", 17)
     pdf.set_text_color(*CHARCOAL_DEEP)
@@ -1379,12 +1714,12 @@ def build(toc_pages: list[int] | None, out: Path) -> list[int]:
         pdf.set_y(y0 + total + 4.0)
 
     # ethics
+    pdf.running_label = "APPENDIX G · FIELD ETHICS"
     pdf.add_page()
-    pdf.running_label = "APPENDIX C · FIELD ETHICS"
     pages.append(pdf.page_no())
     pdf.set_font("bns", "B", 7.0)
     pdf.set_text_color(*OLIVE_DEEP)
-    pdf.cell(80, 5, "APPENDIX C", align="L")
+    pdf.cell(80, 5, "APPENDIX G", align="L")
     pdf.ln(7)
     pdf.set_font("bn", "B", 17)
     pdf.set_text_color(*CHARCOAL_DEEP)
@@ -1425,8 +1760,8 @@ def build(toc_pages: list[int] | None, out: Path) -> list[int]:
         pdf.set_y(y + box_h + 2.6)
 
     # closing
-    pdf.add_page()
     pdf.running_label = "CLOSING"
+    pdf.add_page()
     pages.append(pdf.page_no())
     pdf.set_font("bns", "B", 7.0)
     pdf.set_text_color(*OLIVE_DEEP)
@@ -1500,6 +1835,8 @@ def main() -> int:
     # pass 1 — collect page numbers, pass 2 — render with real TOC numbers
     pages = build(None, OUT)
     build(pages, OUT)
+    if os.environ.get("SLI_DEBUG"):
+        print("[toc pages]", pages)
     size_kb = OUT.stat().st_size / 1024
     print(f"✓ PDF written to {OUT.relative_to(ROOT)} ({size_kb:.0f} KB)")
     return 0

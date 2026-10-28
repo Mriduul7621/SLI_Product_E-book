@@ -10,6 +10,8 @@ import {
   StoryCard,
 } from "./Cards";
 import { visualFor } from "@/data/visuals";
+import { salesPackFor, storyFor } from "@/data/sales";
+import { SalesPlaybook } from "./Mastery";
 
 // Loose typing to accommodate the varied JSON shapes across chapters.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,6 +21,8 @@ export default function Chapter({ chapter }: { chapter: AnyChapter }) {
   const exp = chapter.explanation ?? {};
   const sectionLists: AnyChapter[] = [...(exp.sections ?? []), ...(exp.sections2 ?? [])];
   const visual = visualFor(chapter.id);
+  const story = storyFor(chapter.id);
+  const pack = salesPackFor(chapter.id);
 
   return (
     <article
@@ -39,7 +43,13 @@ export default function Chapter({ chapter }: { chapter: AnyChapter }) {
       </div>
 
       {chapter.story && (
-        <StoryCard characters={chapter.story.characters} dialogue={chapter.story.dialogue} />
+        <StoryCard
+          characters={chapter.story.characters}
+          dialogue={story?.dialogue ?? chapter.story.dialogue}
+          setting={story?.setting}
+          aside={story?.aside}
+          aftermath={story?.aftermath}
+        />
       )}
 
       <ExplanationCard>
@@ -100,6 +110,8 @@ export default function Chapter({ chapter }: { chapter: AnyChapter }) {
       {chapter.goldenRule && <GoldenRuleCard text={chapter.goldenRule} />}
 
       {chapter.bridge && <BridgeNote text={chapter.bridge} />}
+
+      {pack && <SalesPlaybook pack={pack} />}
     </article>
   );
 }

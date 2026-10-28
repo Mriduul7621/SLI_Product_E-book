@@ -131,9 +131,15 @@ function initials(name: string) {
 export function StoryCard({
   characters,
   dialogue,
+  setting,
+  aside,
+  aftermath,
 }: {
   characters: string;
   dialogue: { speaker: string; text: string }[];
+  setting?: string;
+  aside?: string;
+  aftermath?: { title: string; text: string };
 }) {
   const speakers = Array.from(new Set(dialogue.map((d) => d.speaker)));
 
@@ -144,6 +150,11 @@ export function StoryCard({
           <IconBook className="h-4 w-4" />
         </span>
         <h3 className="text-[14.5px] font-extrabold text-charcoal-deep">গল্প (Story)</h3>
+        {setting ? (
+          <span className="rounded bg-white px-1.5 py-0.5 text-[10px] font-bold text-sunset-deep">
+            বিস্তারিত ফিল্ড সংলাপ
+          </span>
+        ) : null}
         <span className="ml-auto hidden font-latin text-[9.5px] font-bold uppercase tracking-[0.18em] text-olive-deep sm:block">
           Field Conversation
         </span>
@@ -156,6 +167,13 @@ export function StoryCard({
           </span>
           <span className="italic">{characters}</span>
         </p>
+
+        {setting && (
+          <p className="mb-4 rounded-md border-l-2 border-olive/50 bg-white/70 px-3 py-2.5 text-[13px] leading-[1.9] text-charcoal-soft">
+            <span className="mr-1.5 font-bold text-olive-deep">দৃশ্য:</span>
+            {setting}
+          </p>
+        )}
 
         <div className="space-y-3.5">
           {dialogue.map((d, i) => {
@@ -211,6 +229,22 @@ export function StoryCard({
             );
           })}
         </div>
+
+        {aside && (
+          <p className="mt-4 rounded-lg border border-olive/30 bg-olive-wash px-3.5 py-3 text-[12.5px] leading-[1.9] text-olive-deep">
+            <span className="mr-1.5 font-extrabold">🎯 কোচিং নোট:</span>
+            {aside}
+          </p>
+        )}
+
+        {aftermath && (
+          <div className="mt-4 rounded-lg border border-forest/20 bg-forest-tint px-3.5 py-3">
+            <p className="mb-1 text-[12px] font-extrabold uppercase tracking-[0.08em] text-forest">
+              {aftermath.title}
+            </p>
+            <p className="text-[13px] leading-[1.9] text-charcoal">{aftermath.text}</p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -10,6 +10,8 @@ import {
   Sidebar,
   type NavItem,
 } from "./components/Layout";
+import { MockTestSection, NeedBasedSection, NoNeedSection, ObjectionMethodSection } from "./components/Mastery";
+import masteryDataRaw from "./data/sales/mastery.json";
 import {
   ClosingSection,
   DownloadSection,
@@ -24,6 +26,7 @@ import { chapterVisuals } from "./data/visuals";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ebookData = ebookDataRaw as any;
+const masteryData = masteryDataRaw as any;
 
 const bn = (n: number) => String(n).replace(/\d/g, (d) => "০১২৩৪৫৬৭৮৯"[Number(d)]);
 
@@ -35,10 +38,14 @@ const navItems: NavItem[] = [
     num: c.number,
     kind: "chapter" as const,
   })),
-  { id: "quick-reference", label: "দ্রুত রেফারেন্স টেবিল", num: "০৮", kind: "appendix" },
-  { id: "assessment", label: "মাস্টার অ্যাসেসমেন্ট", num: "০৯", kind: "appendix" },
-  { id: "ethics", label: "ফিল্ড এথিক্স চেকলিস্ট", num: "১০", kind: "appendix" },
-  { id: "closing", label: "উপসংহার", num: "১১", kind: "appendix" },
+  { id: "mastery", label: "নিড-বেজড বিক্রয় ফ্রেমওয়ার্ক", num: "০৮", kind: "appendix" },
+  { id: "objection-method", label: "আপত্তি মোকাবেলার ৭ ধাপ", num: "০৯", kind: "appendix" },
+  { id: "mock-tests", label: "কঠিন প্রশ্নের মক টেস্ট", num: "১০", kind: "appendix" },
+  { id: "no-need", label: "নো-নিড এথিক্স", num: "১১", kind: "appendix" },
+  { id: "quick-reference", label: "দ্রুত রেফারেন্স টেবিল", num: "১২", kind: "appendix" },
+  { id: "assessment", label: "মাস্টার অ্যাসেসমেন্ট", num: "১৩", kind: "appendix" },
+  { id: "ethics", label: "ফিল্ড এথিক্স চেকলিস্ট", num: "১৪", kind: "appendix" },
+  { id: "closing", label: "উপসংহার", num: "১৫", kind: "appendix" },
 ];
 
 const contentsItems: ContentCard[] = [
@@ -55,16 +62,22 @@ const contentsItems: ContentCard[] = [
     image: chapterVisuals[c.id]?.src,
     accent: (i % 3 === 0 ? "olive" : "charcoal") as ContentCard["accent"],
   })),
-  ...navItems.slice(-4).map((item) => ({
+  ...navItems.slice(-8).map((item) => ({
     ...item,
     title:
       {
+        mastery: masteryData.needBased.heading,
+        "objection-method": masteryData.objectionMethod.heading,
+        "mock-tests": masteryData.mockTest.heading,
+        "no-need": masteryData.noNeed.heading,
         "quick-reference": ebookData.quickReference.heading,
         assessment: ebookData.masterAssessment.heading,
         ethics: ebookData.ethicsChecklist.heading,
         closing: "উপসংহার ও শেষ কথা",
-      }[item.id as "quick-reference" | "assessment" | "ethics" | "closing"] ?? item.label,
-    meta: "Appendix",
+      }[item.id as string] ?? item.label,
+    meta: ["mastery", "objection-method", "mock-tests", "no-need"].includes(item.id)
+      ? "Sales Mastery"
+      : "Appendix",
     accent: "sunset" as const,
   })),
 ];
@@ -114,6 +127,10 @@ export default function App() {
                 ))}
 
                 <div className="space-y-14 border-t border-charcoal/10 pt-12">
+                  <NeedBasedSection data={masteryData.needBased} />
+                  <ObjectionMethodSection data={masteryData.objectionMethod} />
+                  <MockTestSection data={masteryData.mockTest} />
+                  <NoNeedSection data={masteryData.noNeed} />
                   <QuickReferenceSection data={ebookData.quickReference} />
                   <MasterAssessmentSection data={ebookData.masterAssessment} />
                   <EthicsChecklistSection data={ebookData.ethicsChecklist} />
