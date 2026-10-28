@@ -73,7 +73,8 @@ Learning Hub স্প্রেডশিটেই (`1EYJwZDV99DPUcMWdC3LZP_7f1Ey
 | `Responses` | ID · LearnerID · Name · Mobile · EmployeeID · Supervisor · Zone · QuizID · QuizTitle · Score · Total · Percent · Passed · AnswersJSON · StartedAt · SubmittedAt · DurationSeconds · SourceSlug |
 | `Supervisors` | Name |
 | `Zones` | Name |
-| `Meta` | Key · Value (schema version, install time) |
+| `Admins` | Email · Name · AddedAt |
+| `Meta` | Key · Value (স্কিমা ভার্সন, ইনস্টল সময়, অ্যাডমিন সাইন-ইন কনফিগ) |
 
 **হেডার নাম ভিন্ন হলেও চলে।** উদাহরণ: Learning Hub-এর পুরনো `Progress` ট্যাবে যদি
 `Employee Code / Module / State` লেখা থাকে, স্ক্রিপ্ট সেই কলামেই লিখবে
@@ -111,7 +112,68 @@ Learning Hub স্প্রেডশিটেই (`1EYJwZDV99DPUcMWdC3LZP_7f1Ey
 
 ---
 
-## ৬. ট্রেইনার ফ্লো (৫ ধাপ)
+## ৬. অ্যাডমিন সাইন-ইন (Microsoft Entra ID)
+
+লার্নার/এমপ্লয়ির জন্য **কোনো লগইন নেই** — নাম + মোবাইল দিয়েই ঢোকে। শুধু ট্রেইনার
+এলাকাটুকু (`/admin`) কোম্পানির Microsoft work/school অ্যাকাউন্ট দিয়ে সুরক্ষিত, কারণ
+সেখানে কুইজ তৈরি, শেয়ার লিংক ও সবার ফলাফল থাকে।
+
+### কীভাবে কাজ করে
+
+1. `/admin` খুললে **"মাইক্রোসফট দিয়ে সাইন ইন"** বাটন।
+2. ব্রাউজার Microsoft-এ যায় (OAuth2 authorization code + PKCE, কোনো ক্লায়েন্ট সিক্রেট নেই)।
+3. ফিরে আসা `code` কে টোকেনে বদলে অ্যাপ সেটি Apps Script-এ পাঠায় (`adminLogin`)।
+4. Apps Script Microsoft Graph `GET /me` ডেকে টোকেনটি যাচাই করে, ইমেইল নেয়।
+5. ``Admins` ট্যাবের `Admins` তালিকায় ইমেইলটি থাকলে ৮ ঘণ্টার **সেশন টোকেন** দেয়;
+   সেটি ছাড়া কোনো লেখা-অপারেশন শিটে যায় না (`saveQuiz`, `deleteQuiz`, `activate`,
+   `closeActivation`/`reopenActivation`, `saveLists`, `saveLearnerAdmin`)।
+6. ৮ ঘণ্টা পর বা সাইন আউটে টোকেন বাতিল — আবার সাইন ইন করতে হয়।
+
+> Apps Script নিজে RSA সিগনেচার যাচাই করতে পারে না, তাই যাচাই হয় Graph কল সফল হলো কি না
+> দিয়ে। টোকেন শুধু সার্ভার-টু-সার্ভার কলেই ব্যবহৃত হয়, শিটে জমা হয় না। পাসওয়ার্ড
+> কখনোই আমাদের কাছে আসে না।
+
+### একবারের সেটআপ (IT/অ্যাডমিন)
+
+1. **Entra admin center → App registrations → New registration**
+   - Name: `Shanta Life Learning Hub`
+   - Supported account types: *Accounts in this organizational directory only*
+2. **Authentication → Add a platform → Single-page application**
+   - Redirect URI: `https://<আপনার-ডোমেইন>/admin`
+   - (লোকালে টেস্ট করতে `http://localhost:5173/admin`-ও যোগ করুন)
+   - **Implicit grant/হাইব্রিড বন্ধ রাখুন** — PKCE ব্যবহার হচ্ছে।
+3. **API permissions** → Microsoft Graph → *Delegated* → `User.Read` → **Grant admin consent**।
+4. **Overview** থেকে **Directory (tenant) ID** ও **Application (client) ID** কপি করুন।
+5. Apps Script এডিটরে একবার চালান:
+
+```js
+setAuthConfig('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', // tenant ID
+              'yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy', // client ID
+              'shantalife.com');                       // ইমেইল ডোমেইন (ঐচ্ছিক)
+```
+
+`tenantId` / `clientId` গোপন নয় (পাবলিক SPA আইডেন্টিফায়ার) — `Meta` ট্যাবে থাকে,
+অ্যাপ bootstrap-এ সেগুলো পড়ে। কনফিগার না থাকলে পুরনো **পিন (`2468`)** ফলব্যাক হিসেবে
+খোলা থাকে।
+
+### কে অ্যাডমিন হবে — `Admins` ট্যাব
+
+- `setupHubSheets` চালানোর সময় যে Google অ্যাকাউন্টে চালানো হচ্ছে তার ইমেইল প্রথম অ্যাডমিন হিসেবে যোগ হয়।
+- `Admins` ট্যাব **খালি** থাকলে প্রথম যে Microsoft অ্যাকাউন্ট সাইন ইন করবে সে-ই প্রথম
+  অ্যাডমিন হিসেবে যুক্ত হবে (first-run) — তাই সেটআপের পর একবার নিজে সাইন ইন করে নিন।
+- নতুন ট্রেইনার যোগ করতে `Admins` ট্যাবে এক লাইন যোগ করুন: `email | name | addedAt`।
+  সরাতে চাইলে লাইনটি মুছে দিন।
+- `adminDomain` সেট থাকলে অন্য ডোমেইনের অ্যাকাউন্ট শুরুতেই বাতিল হয়।
+
+### আরও কড়া নিয়ন্ত্রণ চাইলে (ঐচ্ছিক)
+
+`Admins` ট্যাবের বদলে (বা সাথে) Entra **Security group** ব্যবহার করা যায় —
+তখন অ্যাপে group ID বসিয়ে Graph দিয়ে মেম্বারশিপ যাচাই করতে হয়। এখন দরকার নেই,
+কারণ শিট-তালিকা IT-এর হাতের বাইরে রেখেই কাজ চালায়।
+
+---
+
+## ৭. ট্রেইনার ফ্লো (৫ ধাপ)
 
 1. **কুইজ ব্যাংক → নতুন কুইজ** — বিল্ট-ইন সেট থেকে কপি করুন (প্রয়োজনে পরে সম্পাদনা)।
 2. **শেয়ার লিংক → নতুন লিংক** — কুইজ, তারিখ, সময়সীমা ও বার্তা দিন।
@@ -122,7 +184,7 @@ Learning Hub স্প্রেডশিটেই (`1EYJwZDV99DPUcMWdC3LZP_7f1Ey
 
 ---
 
-## ৭. ডেভেলপমেন্ট ও টেস্ট
+## ৮. ডেভেলপমেন্ট ও টেস্ট
 
 ```bash
 npm ci
@@ -146,7 +208,7 @@ npm run build        # dist/ (single file)
 
 ---
 
-## ৮. সমস্যা ও সমাধান
+## ৯. সমস্যা ও সমাধান
 
 | লক্ষণ | কারণ | সমাধান |
 | --- | --- | --- |
@@ -160,7 +222,7 @@ npm run build        # dist/ (single file)
 
 ---
 
-## ৯. গোপনীয়তা ও ব্যবহারবিধি
+## ১০. গোপনীয়তা ও ব্যবহারবিধি
 
 - Employee ID, মোবাইল ও স্কোর — সবই অভ্যন্তরীণ প্রশিক্ষণ রিপোর্টের জন্য।
 - স্প্রেডশিট শুধু নির্দিষ্ট ট্রেনিং টিমের সাথে শেয়ার করুন (Editor: ২-৩ জন)।

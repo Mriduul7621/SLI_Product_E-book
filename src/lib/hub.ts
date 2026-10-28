@@ -9,6 +9,14 @@
 
 import { useSyncExternalStore } from "react";
 import { dateKey, isoDay, uid } from "@/lib/format";
+import {
+  adminToken,
+  clearAdminSession,
+  readAdminSession,
+  storeAdminSession,
+  type AdminSession,
+  type EntraConfig,
+} from "@/lib/auth";
 import { BUILTIN_QUIZZES, MODULES } from "@/data/curriculum";
 import type {
   Activation,
@@ -38,6 +46,9 @@ type QueueItem =
 
 type Settings = { apiUrl: string };
 
+/** Public configuration returned by the sheet (tenant/client IDs are not secret). */
+type RemoteAuth = Partial<EntraConfig> & { adminRequired?: boolean };
+
 type State = {
   learner: Learner;
   progress: Record<string, ProgressEntry>;
@@ -47,6 +58,7 @@ type State = {
   supervisors: string[];
   zones: string[];
   settings: Settings;
+  auth: RemoteAuth;
   queue: QueueItem[];
   sync: { status: SyncStatus; lastSyncAt: string; error: string };
 };
@@ -85,6 +97,7 @@ function defaultState(): State {
     supervisors: [],
     zones: [],
     settings: { apiUrl: readApiFromUrl() },
+    auth: {},
     queue: [],
     sync: { status: "idle", lastSyncAt: "", error: "" },
   };
@@ -102,6 +115,7 @@ function load(): State {
       ...parsed,
       learner: { ...base.learner, ...(parsed.learner ?? {}) },
       settings: { ...base.settings, ...(parsed.settings ?? {}) },
+      auth: parsed.auth ?? {},
       sync: { ...base.sync, ...(parsed.sync ?? {}) },
       progress: parsed.progress ?? {},
       attempts: parsed.attempts ?? [],
@@ -223,18 +237,19 @@ async function flushOnce(): Promise<void> {
       } else if (item.kind === "attempt") {
         await remotePost({ action: "submit", attempt: item.payload });
       } else if (item.kind === "quiz") {
-        await remotePost({ action: "saveQuiz", quiz: item.payload });
+        await remotePost({ action: "saveQuiz", quiz: item.payload, sessionToken: adminToken() });
       } else if (item.kind === "deleteQuiz") {
-        await remotePost({ action: "deleteQuiz", id: item.payload.id });
+        await remotePost({ action: "deleteQuiz", id: item.payload.id, sessionToken: adminToken() });
       } else if (item.kind === "activation") {
-        await remotePost({ action: "activate", activation: item.payload });
+        await remotePost({ action: "activate", activation: item.payload, sessionToken: adminToken() });
       } else if (item.kind === "close") {
         await remotePost({
           action: item.payload.closed ? "closeActivation" : "reopenActivation",
           slug: item.payload.slug,
+          sessionToken: adminToken(),
         });
       } else if (item.kind === "lists") {
-        await remotePost({ action: "saveLists", ...item.payload });
+        await remotePost({ action: "saveLists", ...item.payload, sessionToken: adminToken() });
       }
       sent.push(item);
       if (item.kind === "attempt") {
@@ -397,10 +412,16 @@ export function resetLocal(): void {
 export async function bootstrap(): Promise<{ ok: boolean; message: string }> {
   if (!hasRemote()) return { ok: false, message: "Apps Script URL সেট করা নেই" };
   try {
-    const data = await remoteGet<Catalog & { ok: boolean; learner?: Learner; progress?: ProgressEntry[]; results?: Attempt[] }>(
-      "bootstrap",
-      { learnerId: learnerKey() },
-    );
+    const data = await remoteGet<
+      Catalog & {
+        ok: boolean;
+        learner?: Learner;
+        progress?: ProgressEntry[];
+        results?: Attempt[];
+        auth?: EntraConfig;
+        adminRequired?: boolean;
+      }
+    >("bootstrap", { learnerId: learnerKey() });
     const remoteQuizzes = (data.quizzes ?? []).filter((q) => q?.id && q.origin !== "builtin");
     const mergedQuizzes = [
       ...remoteQuizzes,
@@ -427,6 +448,12 @@ export async function bootstrap(): Promise<{ ok: boolean; message: string }> {
       zones: data.zones?.length ? data.zones : state.zones,
       progress,
       attempts,
+      auth: {
+        tenantId: data.auth?.tenantId ?? state.auth.tenantId,
+        clientId: data.auth?.clientId ?? state.auth.clientId,
+        domain: data.auth?.domain ?? state.auth.domain,
+        adminRequired: data.adminRequired ?? state.auth.adminRequired,
+      },
       sync: { status: "idle", lastSyncAt: new Date().toISOString(), error: "" },
     });
     void flushOnce();
@@ -445,6 +472,59 @@ export async function testConnection(): Promise<{ ok: boolean; message: string }
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Admin sign-in (Microsoft Entra ID)                                  */
+/* ------------------------------------------------------------------ */
+
+export function currentAdmin(): AdminSession | null {
+  return readAdminSession();
+}
+
+/**
+ * Verifies a Microsoft access token on the server and stores the session the
+ * sheet issues. The client never decides who is an admin.
+ */
+export async function adminLogin(accessToken: string): Promise<{ ok: boolean; message: string }> {
+  try {
+    const base = state.settings.apiUrl.trim();
+    if (!base) return { ok: false, message: "Apps Script URL সেট করা নেই" };
+    const res = await fetch(base, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "adminLogin", accessToken }),
+    });
+    const json = await res.json();
+    if (!json?.ok) return { ok: false, message: json?.error ?? "সাইন-ইন ব্যর্থ" };
+    storeAdminSession({
+      token: json.token,
+      email: json.admin?.email ?? "",
+      name: json.admin?.name ?? "",
+      expiresAt: json.expiresAt ?? "",
+    });
+    commit({ ...state, sync: { ...state.sync, status: "idle", error: "" } });
+    return { ok: true, message: `স্বাগতম, ${json.admin?.email ?? ""}` };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function adminLogout(): Promise<void> {
+  const token = adminToken();
+  clearAdminSession();
+  if (token && hasRemote()) {
+    try {
+      await remotePost({ action: "adminLogout", sessionToken: token });
+    } catch {
+      /* offline sign-out still clears the local session */
+    }
+  }
+  commit({ ...state });
+}
+
+export function adminRequired(): boolean {
+  return Boolean(state.auth.adminRequired);
 }
 
 /* ------------------------------------------------------------------ */

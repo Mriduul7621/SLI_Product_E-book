@@ -1,10 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, navigate } from "@/lib/router";
 import {
   HUB_SHEET_ID,
   HUB_SHEET_URL,
+  adminLogin,
+  adminLogout,
   allQuizzes,
   bootstrap,
+  currentAdmin,
   deleteQuiz,
   resetLocal,
   saveActivation,
@@ -47,6 +50,15 @@ import {
   Tabs,
   toast,
 } from "@/components/hub/ui";
+import {
+  beginMicrosoftLogin,
+  clearAdminSession,
+  clearCallbackState,
+  exchangeCode,
+  readCallback,
+  resolveConfig,
+  type AdminSession,
+} from "@/lib/auth";
 import { cn } from "@/utils/cn";
 import type { Activation, Attempt, Question, Quiz } from "@/lib/types";
 
@@ -55,56 +67,190 @@ const DEFAULT_PIN = "2468";
 
 type AdminTab = "overview" | "bank" | "links" | "results" | "lists" | "settings";
 
+/**
+ * Gate for the trainer area.
+ *
+ * Primary path: "Sign in with Microsoft" — a company work/school account is
+ * checked by the sheet against the `Admins` tab, which returns a short-lived
+ * session token (8 h). The token travels with every admin write.
+ *
+ * Fallback: the old PIN, kept for the first-run window before the tenant and
+ * client IDs are set with `setAuthConfig(...)`.
+ */
 export default function Admin() {
-  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(PIN_KEY) === "ok");
+  const auth = useHub((s) => s.auth);
+  const apiUrl = useHub((s) => s.settings.apiUrl);
+  const config = useMemo(() => resolveConfig(auth), [auth]);
+
+  const [session, setSession] = useState<AdminSession | null>(() => currentAdmin());
+  const [pinOk, setPinOk] = useState(() => sessionStorage.getItem(PIN_KEY) === "ok");
+  const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  if (!unlocked) {
+  // The tenant/client IDs live in the sheet's Meta tab — make sure we have them.
+  useEffect(() => {
+    if (apiUrl) void bootstrap().catch(() => {});
+  }, [apiUrl]);
+
+  // Microsoft redirects back here with ?code=… — finish the PKCE exchange.
+  useEffect(() => {
+    const callback = readCallback(window.location.search);
+    if (callback.status === "none") return;
+    if (callback.status === "error") {
+      setError(callback.message);
+      clearCallbackState();
+      return;
+    }
+    if (!config) {
+      setError("অ্যাডমিন সাইন-ইন এখনো কনফিগার করা হয়নি (setAuthConfig)");
+      clearCallbackState();
+      return;
+    }
+    let live = true;
+    setBusy(true);
+    (async () => {
+      try {
+        const accessToken = await exchangeCode(config, callback.code, callback.verifier);
+        const result = await adminLogin(accessToken);
+        if (!live) return;
+        if (result.ok) {
+          clearCallbackState();
+          window.history.replaceState({}, "", "/admin");
+          setSession(currentAdmin());
+          setError("");
+        } else {
+          setError(result.message);
+        }
+      } catch (err) {
+        if (live) setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (live) setBusy(false);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [config]);
+
+  if (session || pinOk) {
     return (
-      <div className="mx-auto max-w-md">
-        <Card className="p-6 sm:p-8">
-          <div className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-charcoal text-white">
-            <IconUsers className="h-5 w-5" />
+      <>
+        <div className="mx-auto mb-3 flex max-w-5xl flex-wrap items-center justify-between gap-2 rounded-xl bg-seashell px-4 py-2 text-[11.5px] text-charcoal-soft">
+          <span>
+            {session ? (
+              <>
+                সাইন-ইন: <span className="font-semibold text-charcoal">{session.email}</span>
+                {session.expiresAt ? <> · মেয়াদ {bnDateTime(session.expiresAt)}</> : null}
+              </>
+            ) : (
+              <>পিন দিয়ে ঢোকা হয়েছে — মাইক্রোসফট সাইন-ইন কনফিগার হলে এটি বন্ধ হয়ে যাবে</>
+            )}
+          </span>
+          <button
+            type="button"
+            className="font-semibold text-sunset-deep hover:underline"
+            onClick={() => {
+              void adminLogout();
+              clearAdminSession();
+              sessionStorage.removeItem(PIN_KEY);
+              setSession(null);
+              setPinOk(false);
+            }}
+          >
+            সাইন আউট
+          </button>
+        </div>
+        <AdminPanel />
+      </>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-md">
+      <Card className="p-6 sm:p-8">
+        <div className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-charcoal text-white">
+          <IconUsers className="h-5 w-5" />
+        </div>
+        <h1 className="text-[1.2rem] font-extrabold text-charcoal-deep">ট্রেনার অ্যাক্সেস</h1>
+        <p className="mt-1.5 text-[12.5px] leading-relaxed text-charcoal-soft">
+          {config
+            ? "কোম্পানির মাইক্রোসফট (M365) অ্যাকাউন্ট দিয়ে সাইন ইন করুন। অনুমোদিত ইমেইল শিটের Admins ট্যাবে থাকে।"
+            : "কুইজ তৈরি, শেয়ার লিংক ও ফলাফল দেখতে পিন দিন। মাইক্রোসফট সাইন-ইন এখনো কনফিগার করা হয়নি।"}
+        </p>
+
+        {error ? (
+          <div className="mt-4">
+            <Alert tone="clay">{error}</Alert>
           </div>
-          <h1 className="text-[1.2rem] font-extrabold text-charcoal-deep">ট্রেনার অ্যাক্সেস</h1>
-          <p className="mt-1.5 text-[12.5px] leading-relaxed text-charcoal-soft">
-            কুইজ তৈরি, শেয়ার লিংক ও ফলাফল দেখতে পিন দিন। এটি শুধু স্ক্রিন-লেভেল গার্ড — আসল নিয়ন্ত্রণ Google Sheet-এর
-            শেয়ার সেটিংসে।
-          </p>
+        ) : null}
+
+        {config ? (
+          <div className="mt-5 space-y-3">
+            <Button
+              block
+              variant="primary"
+              disabled={busy}
+              onClick={() => {
+                setError("");
+                setBusy(true);
+                void beginMicrosoftLogin(config).finally(() => setBusy(false));
+              }}
+            >
+              {busy ? <Spinner className="h-3.5 w-3.5" /> : <IconExternal className="h-3.5 w-3.5" />}{" "}
+              মাইক্রোসফট দিয়ে সাইন ইন
+            </Button>
+            <p className="text-center text-[11px] text-charcoal-soft">
+              অ্যাকাউন্ট: {config.domain ? `@${config.domain}` : "কোম্পানির M365"}
+            </p>
+            <button
+              type="button"
+              className="mx-auto block text-[11.5px] font-semibold text-charcoal-soft hover:underline"
+              onClick={() => setShowPin((v) => !v)}
+            >
+              {showPin ? "পিন অপশন লুকান" : "সমস্যা হচ্ছে? পিন দিয়ে ঢুকুন"}
+            </button>
+          </div>
+        ) : null}
+
+        {!config || showPin ? (
           <form
             className="mt-5 space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
               if (pin.trim() === DEFAULT_PIN) {
                 sessionStorage.setItem(PIN_KEY, "ok");
-                setUnlocked(true);
+                setPinOk(true);
                 setError("");
+                setPin("");
               } else {
                 setError("পিনটি সঠিক নয়");
               }
             }}
           >
-            <Field label="পিন" error={error} hint={`ডিফল্ট পিন: ${DEFAULT_PIN}`}>
+            <Field label="পিন" hint={`ফলব্যাক পিন: ${DEFAULT_PIN}`}>
               <Input
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 type="password"
                 inputMode="numeric"
                 placeholder="••••"
-                autoFocus
+                autoFocus={!config}
               />
             </Field>
-            <Button type="submit" block variant="primary">
+            <Button type="submit" block variant={config ? "outline" : "primary"}>
               প্রবেশ করুন
             </Button>
           </form>
-        </Card>
-      </div>
-    );
-  }
+        ) : null}
 
-  return <AdminPanel />;
+        <p className="mt-4 text-[11px] leading-relaxed text-charcoal-soft">
+          মাইক্রোসফট সাইন-ইন শিটের Admins তালিকা দিয়ে যাচাই হয় — পাসওয়ার্ড আমাদের সার্ভারে জমা থাকে না।
+        </p>
+      </Card>
+    </div>
+  );
 }
 
 function AdminPanel() {

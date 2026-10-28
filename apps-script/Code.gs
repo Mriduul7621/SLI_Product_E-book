@@ -137,6 +137,14 @@ var SCHEMA = {
     aliases: ['Zones', 'Zone', 'Regions'],
     fields: [{ key: 'name', header: 'Name', aliases: ['Zone', 'Region'] }]
   },
+  Admins: {
+    aliases: ['Admins', 'Admin', 'Trainers', 'Admins List'],
+    fields: [
+      { key: 'email', header: 'Email', aliases: ['E-mail', 'Mail', 'User Principal Name', 'UPN', 'Admin Email'] },
+      { key: 'name', header: 'Name', aliases: ['Display Name', 'Full Name'] },
+      { key: 'addedAt', header: 'AddedAt', aliases: ['Added At', 'Date'] }
+    ]
+  },
   Meta: {
     aliases: ['Meta', 'Settings', 'Config'],
     fields: [
@@ -373,9 +381,43 @@ function setupHubSheets() {
   upsert_('Meta', 'key', 'schemaVersion', { key: 'schemaVersion', value: APP_VERSION });
   upsert_('Meta', 'key', 'installedAt', { key: 'installedAt', value: nowIso_() });
 
+  // স্ক্রিপ্ট চালানো ব্যক্তিকে প্রথম অ্যাডমিন হিসেবে যোগ করা হয়, নাহলে
+  // অ্যাডমিন লগইন চালু করার পরেও কেউ ঢুকতে পারবে না।
+  if (readAll_('Admins').length === 0) {
+    var owner = '';
+    try {
+      owner = String(Session.getEffectiveUser().getEmail() || '');
+    } catch (ignore) {}
+    if (owner) {
+      upsert_('Admins', 'email', owner.toLowerCase(), {
+        email: owner.toLowerCase(),
+        name: owner.split('@')[0],
+        addedAt: nowIso_()
+      });
+    }
+  }
+
   var tabs = ss.getSheets().map(function (s) { return s.getName(); });
   Logger.log('✅ setupHubSheets সম্পন্ন। ট্যাব: ' + tabs.join(', '));
   return 'OK — ' + tabs.length + ' টি ট্যাব প্রস্তুত';
+}
+
+/**
+ * ▶ এডিটর থেকে একবার রান করুন — Microsoft (Entra ID) সাইন-ইন কনফিগার করতে।
+ *
+ *   setAuthConfig('আপনার-Tenant-ID', 'আপনার-Client-ID', 'shantalife.com')
+ *
+ * Tenant ID / Client ID পাবেন: Entra admin center → App registrations →
+ * আপনার অ্যাপ → Overview। Client ID আর Tenant ID গোপন তথ্য নয় — ব্রাউজার
+ * এগুলো পড়ে, তাই শিটে রাখা নিরাপদ।
+ */
+function setAuthConfig(tenantId, clientId, adminDomain) {
+  if (!tenantId || !clientId) throw new Error('tenantId এবং clientId দুটোই দিতে হবে');
+  upsert_('Meta', 'key', 'authTenantId', { key: 'authTenantId', value: String(tenantId).trim() });
+  upsert_('Meta', 'key', 'authClientId', { key: 'authClientId', value: String(clientId).trim() });
+  upsert_('Meta', 'key', 'adminDomain', { key: 'adminDomain', value: String(adminDomain || '').trim().toLowerCase() });
+  Logger.log('✅ Microsoft sign-in কনফিগার হয়েছে।');
+  return 'OK';
 }
 
 /** এডিটর থেকে সাবমিশন ফ্লো টেস্ট (ঐচ্ছিক)। */
@@ -458,6 +500,94 @@ function registerLearner_(learner, explicitId) {
 }
 
 /* ------------------------------------------------------------------ */
+/* অ্যাডমিন প্রমাণীকরণ (Microsoft Entra ID)                          */
+/* ------------------------------------------------------------------ */
+
+var SESSION_HOURS = 8;
+var SESSION_PREFIX = 'sess_';
+
+function metaValue_(key) {
+  var row = readAll_('Meta').filter(function (m) {
+    return String(m.key || '').trim() === key;
+  })[0];
+  return row ? String(row.value || '').trim() : '';
+}
+
+function authConfig_() {
+  return {
+    tenantId: metaValue_('authTenantId'),
+    clientId: metaValue_('authClientId'),
+    domain: metaValue_('adminDomain').toLowerCase()
+  };
+}
+
+function adminEmails_() {
+  return readAll_('Admins')
+    .map(function (a) { return String(a.email || '').trim().toLowerCase(); })
+    .filter(String);
+}
+
+/** Microsoft Graph দিয়ে টোকেন বৈধ কিনা যাচাই করে ইমেইল ফেরত দেয়। */
+function verifyMicrosoftToken_(accessToken) {
+  if (!accessToken) throw new Error('অ্যাক্সেস টোকেন নেই');
+  var res = UrlFetchApp.fetch(
+    'https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName,displayName',
+    {
+      method: 'get',
+      headers: { Authorization: 'Bearer ' + accessToken },
+      muteHttpExceptions: true
+    }
+  );
+  var code = res.getResponseCode();
+  if (code !== 200) throw new Error('Microsoft টোকেন যাচাই ব্যর্থ (HTTP ' + code + ')');
+  var data = safeJson_(res.getContentText(), {});
+  var email = String(data.mail || data.userPrincipalName || '').trim().toLowerCase();
+  if (!email) throw new Error('অ্যাকাউন্টের ইমেইল পাওয়া যায়নি');
+  return { email: email, name: String(data.displayName || '') };
+}
+
+function createSession_(email, name) {
+  var token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 12);
+  var expiresAt = new Date(Date.now() + SESSION_HOURS * 3600 * 1000).toISOString();
+  PropertiesService.getScriptProperties().setProperty(
+    SESSION_PREFIX + token,
+    JSON.stringify({ email: email, name: name, expiresAt: expiresAt })
+  );
+  return { token: token, expiresAt: expiresAt };
+}
+
+/** সেশন টোকেন যাচাই — অবৈধ হলে null। */
+function readSession_(token) {
+  if (!token) return null;
+  var props = PropertiesService.getScriptProperties();
+  var raw = props.getProperty(SESSION_PREFIX + String(token));
+  if (!raw) return null;
+  var session = safeJson_(raw, null);
+  if (!session) return null;
+  if (Date.parse(session.expiresAt) < Date.now()) {
+    props.deleteProperty(SESSION_PREFIX + String(token));
+    return null;
+  }
+  return session;
+}
+
+/**
+ * অ্যাডমিন action-গুলোর জন্য বাধ্যতামূলক গেট।
+ * Admins তালিকা খালি থাকলে (সেটআপের আগে) কিছুই আটকায় না — তাতে প্রথম
+ * ইনস্টলেশন আটকে না যায়; একবার Admins ভরে গেলে সব কড়া হয়ে যায়।
+ */
+function requireAdmin_(body) {
+  if (adminEmails_().length === 0) return { open: true };
+  var session = readSession_(body && body.sessionToken);
+  if (!session) {
+    var err = new Error('অ্যাডমিন সেশন নেই বা মেয়াদ শেষ — আবার সাইন-ইন করুন');
+    err.status = 401;
+    throw err;
+  }
+  return { open: false, session: session };
+}
+
+/* ------------------------------------------------------------------ */
 /* GET API                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -496,6 +626,8 @@ function doGet(e) {
       return json_({
         ok: true,
         version: APP_VERSION,
+        auth: authConfig_(),
+        adminRequired: adminEmails_().length > 0,
         quizzes: quizzes,
         activations: activations,
         supervisors: listOf_('Supervisors'),
@@ -557,6 +689,47 @@ function doPost(e) {
     lock.waitLock(25000);
     var body = safeJson_(e.postData.contents, {});
     var action = String(body.action || 'submit');
+
+    if (action === 'adminLogin') {
+      var cfg = authConfig_();
+      var identity = verifyMicrosoftToken_(body.accessToken);
+      if (cfg.domain && identity.email.split('@')[1] !== cfg.domain) {
+        return json_({ ok: false, code: 403, error: 'এই অ্যাকাউন্ট (' + identity.email + ') অনুমোদিত ডোমেইনের নয়' });
+      }
+      var allowed = adminEmails_();
+      if (allowed.length && allowed.indexOf(identity.email) === -1) {
+        return json_({ ok: false, code: 403, error: identity.email + ' অ্যাডমিন তালিকায় নেই' });
+      }
+      // First sign-in on a fresh sheet becomes the first admin (documented).
+      if (!allowed.length) {
+        upsert_('Admins', 'email', identity.email, {
+          email: identity.email,
+          name: identity.name,
+          addedAt: nowIso_()
+        });
+      }
+      var session = createSession_(identity.email, identity.name);
+      return json_({
+        ok: true,
+        token: session.token,
+        expiresAt: session.expiresAt,
+        admin: { email: identity.email, name: identity.name }
+      });
+    }
+
+    if (action === 'adminSession') {
+      var current = readSession_(body.sessionToken);
+      return current
+        ? json_({ ok: true, admin: { email: current.email, name: current.name, expiresAt: current.expiresAt } })
+        : json_({ ok: false, code: 401, error: 'সেশন নেই বা মেয়াদ শেষ' });
+    }
+
+    if (action === 'adminLogout') {
+      if (body.sessionToken) {
+        PropertiesService.getScriptProperties().deleteProperty(SESSION_PREFIX + String(body.sessionToken));
+      }
+      return json_({ ok: true });
+    }
 
     if (action === 'registerLearner') {
       var learner = body.learner || {};
@@ -627,6 +800,7 @@ function doPost(e) {
     }
 
     if (action === 'saveQuiz' && body.quiz) {
+      requireAdmin_(body);
       var quiz = body.quiz;
       if (!quiz.id) return json_({ ok: false, error: 'quiz.id প্রয়োজন' });
       upsert_('Quizzes', 'id', quiz.id, {
@@ -645,6 +819,7 @@ function doPost(e) {
     }
 
     if (action === 'deleteQuiz' && body.id) {
+      requireAdmin_(body);
       var sheet = table_('Quizzes');
       var idCol = sheet.map.id;
       var lastRow = sheet.sheet.getLastRow();
@@ -657,6 +832,7 @@ function doPost(e) {
     }
 
     if (action === 'activate' && body.activation) {
+      requireAdmin_(body);
       var act = body.activation;
       if (!act.slug) return json_({ ok: false, error: 'activation.slug প্রয়োজন' });
       upsert_('Activations', 'slug', act.slug, {
@@ -675,6 +851,7 @@ function doPost(e) {
     }
 
     if (action === 'closeActivation' || action === 'reopenActivation') {
+      requireAdmin_(body);
       var closing = action === 'closeActivation';
       var t = table_('Activations');
       var last = t.sheet.getLastRow();
@@ -689,12 +866,14 @@ function doPost(e) {
     }
 
     if (action === 'saveLists') {
+      requireAdmin_(body);
       if (body.supervisors) setList_('Supervisors', body.supervisors);
       if (body.zones) setList_('Zones', body.zones);
       return json_({ ok: true, supervisors: listOf_('Supervisors'), zones: listOf_('Zones') });
     }
 
     if (action === 'saveLearnerAdmin') {
+      requireAdmin_(body);
       var l = body.learner || {};
       var lid = String(l.learnerId || l.employeeId || l.mobile || '').trim().toLowerCase();
       if (!lid) return json_({ ok: false, error: 'learnerId প্রয়োজন' });
@@ -714,7 +893,11 @@ function doPost(e) {
 
     return json_({ ok: false, error: 'অজানা action: ' + action });
   } catch (err) {
-    return json_({ ok: false, error: String(err && err.message ? err.message : err) });
+    return json_({
+      ok: false,
+      code: err && err.status ? err.status : 500,
+      error: String(err && err.message ? err.message : err)
+    });
   } finally {
     try {
       lock.releaseLock();

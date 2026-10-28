@@ -88,6 +88,15 @@ const progressTab = new FakeSheet("Progress", [
   ["sli-0001", "endowment", "completed", "পুরনো রেকর্ড"],
 ]);
 const workbook = new FakeSpreadsheet([progressTab]);
+let scriptProps = new Map();
+/** e-mail "signed in" to Apps Script; empty = no owner to seed automatically */
+let sessionEmail = "";
+let uuidSeq = 0;
+/** access token → identity returned by the fake Microsoft Graph */
+const graphTokens = new Map();
+graphTokens.set("outsider", { mail: "someone@shantalife.com", name: "Outsider" });
+graphTokens.set("other-domain", { mail: "someone@gmail.com", name: "Outside Domain" });
+graphTokens.set("owner-token", { mail: "Owner@ShantaLife.com", name: "Owner" });
 
 const context = {
   console,
@@ -107,7 +116,34 @@ const context = {
       },
     }),
   },
+  Session: { getEffectiveUser: () => ({ getEmail: () => sessionEmail }) },
+  PropertiesService: {
+    getScriptProperties: () => {
+      if (!scriptProps) scriptProps = new Map();
+      return {
+        getProperty: (k) => (scriptProps.has(k) ? scriptProps.get(k) : null),
+        setProperty: (k, v) => scriptProps.set(k, String(v)),
+        deleteProperty: (k) => scriptProps.delete(k),
+        getProperties: () => Object.fromEntries(scriptProps),
+      };
+    },
+  },
+  UrlFetchApp: {
+    fetch: (url, options = {}) => {
+      const auth = String(options.headers?.Authorization ?? "");
+      const token = auth.replace(/^Bearer\s+/i, "");
+      const known = graphTokens.get(token);
+      const body = known
+        ? { mail: known.mail, userPrincipalName: known.mail, displayName: known.name }
+        : { error: { code: "InvalidAuthenticationToken" } };
+      return {
+        getResponseCode: () => (known ? 200 : 401),
+        getContentText: () => JSON.stringify(body),
+      };
+    },
+  },
   Utilities: {
+    getUuid: () => `uuid-${(uuidSeq += 1).toString(16).padStart(4, "0")}-0000-4000-8000-000000000000`,
     formatDate: (date, _tz, pattern) => {
       const p = (n) => String(n).padStart(2, "0");
       if (pattern === "yyyy-MM-dd") return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`;
@@ -275,6 +311,58 @@ check("quiz deleted", tab("Quizzes").getLastRow() === 1, `rows=${tab("Quizzes").
 // unknown action
 check("unknown action is reported", get({ action: "nope" }).ok === false);
 check("bad post payload is reported", JSON.parse(context.doPost({}).text).ok === false);
+
+/* --------------------------- admin auth ----------------------------- */
+check("Admins tab starts empty", tab("Admins").getLastRow() === 1, JSON.stringify(tab("Admins").rows));
+check("first run leaves admin writes open", get({ action: "bootstrap" }).adminRequired === false);
+check("admin mutation allowed on an empty Admins list", post({ action: "deleteQuiz", id: "nope" }).ok === true);
+
+tab("Admins").appendRow(["owner@shantalife.com", "Owner", new Date().toISOString()]);
+check("bootstrap reports adminRequired once Admins is non-empty", get({ action: "bootstrap" }).adminRequired === true);
+check(
+  "admin mutation without a session is rejected",
+  post({ action: "deleteQuiz", id: "nope" }).code === 401,
+  JSON.stringify(post({ action: "deleteQuiz", id: "nope" })),
+);
+check("admin login rejects a bad Microsoft token", post({ action: "adminLogin", accessToken: "bad" }).ok === false);
+
+graphTokens.set("good-token", { mail: "Trainer@ShantaLife.com", name: "ট্রেইনার" });
+const outsider = post({ action: "adminLogin", accessToken: "outsider" });
+check("non-listed account is refused", outsider.ok === false, JSON.stringify(outsider));
+
+const ownerLogin = post({ action: "adminLogin", accessToken: "owner-token" });
+check("listed account gets a session", ownerLogin.ok === true && ownerLogin.token?.length > 20, JSON.stringify(ownerLogin));
+check("session carries the normalised email", ownerLogin.admin?.email === "owner@shantalife.com");
+check("session expiry is ~8h ahead", Date.parse(ownerLogin.expiresAt) - Date.now() > 7.9 * 3600 * 1000);
+
+const sess = { sessionToken: ownerLogin.token };
+check("session validates via adminSession", post({ action: "adminSession", ...sess }).admin?.email === "owner@shantalife.com");
+check("admin mutation accepted with a session", post({ action: "deleteQuiz", id: "nope", ...sess }).ok === true);
+check("bogus session is rejected", post({ action: "deleteQuiz", id: "nope", sessionToken: "sess_forged" }).code === 401);
+
+// domain gate (only when adminDomain is configured)
+context.setAuthConfig("contoso.onmicrosoft.com", "client-123", "shantalife.com");
+const cfgBoot = get({ action: "bootstrap" });
+check("bootstrap exposes the public auth config", cfgBoot.auth?.clientId === "client-123" && cfgBoot.auth?.tenantId === "contoso.onmicrosoft.com");
+check("bootstrap exposes the admin domain", cfgBoot.auth?.domain === "shantalife.com");
+check("wrong-domain account is refused", post({ action: "adminLogin", accessToken: "other-domain" }).ok === false);
+check("right-domain but unlisted account is refused", post({ action: "adminLogin", accessToken: "good-token" }).ok === false);
+
+// an unlisted, right-domain account on an *empty* Admins list becomes the first admin
+tab("Admins").rows = tab("Admins").rows.slice(0, 1);
+const firstAdmin = post({ action: "adminLogin", accessToken: "owner-token" });
+check("first sign-in seeds the Admins list", firstAdmin.ok === true && tab("Admins").getLastRow() === 2, JSON.stringify(tab("Admins").rows));
+
+// expiry — rewrite the stored session far in the past
+const storedKey = [...scriptProps.keys()].find((k) => k.endsWith(ownerLogin.token));
+const stored = JSON.parse(scriptProps.get(storedKey));
+scriptProps.set(storedKey, JSON.stringify({ ...stored, expiresAt: new Date(Date.now() - 1000).toISOString() }));
+check("expired session is rejected", post({ action: "adminSession", ...sess }).ok === false);
+check("expired session is deleted", !scriptProps.has(storedKey));
+
+const secondLogin = post({ action: "adminLogin", accessToken: "owner-token" });
+check("logout kills the session", post({ action: "adminLogout", sessionToken: secondLogin.token }).ok === true);
+check("session gone after logout", post({ action: "adminSession", sessionToken: secondLogin.token }).ok === false);
 
 if (failures) {
   console.error(`\n${failures} backend check(s) failed`);
