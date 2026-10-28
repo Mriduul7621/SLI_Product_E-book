@@ -79,7 +79,37 @@ matras are typeset correctly, using the same self-hosted Noto Sans Bengali famil
 the website. Chapter page numbers are resolved in a first pass and injected into the
 contents page in a second pass.
 
-## 5. Content model
+## 5. Deploying on Vercel
+
+The repository ships a `vercel.json` at the root. **The project is a single static
+service** — a Vite build that outputs one self-contained `dist/index.html` plus the
+`public/` files (scene art, Bengali fonts, the PDF and the DOCX).
+
+| Setting | Value |
+| --- | --- |
+| Framework preset | Vite (auto-detected) |
+| Install command | `npm ci` |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Node runtime | any 20+ image (Vite 7 requires Node 20.19+ / 22.12+) |
+
+Import the repo in Vercel, keep the detected settings, and deploy — no environment
+variables and no build-time services are required.
+
+**Why there is no `services` block:** `scripts/` holds *offline generators*
+(`build_pdf.py`, `generate-docx.mjs`) that produce the PDF and Word files committed in
+`public/`; they are run by a human (`npm run build:book`), not per request. They expose
+no HTTP entrypoint, so declaring them as a Python service would fail to build and add no
+runtime capability. The site never calls any backend: every page, image, font and
+download is static, so there are no inter-service bindings to declare either.
+
+If a runtime API is ever needed, add it as its own directory with a real entrypoint
+(e.g. `api/app.py` exposing `app`), declare it as a second service, make it public on a
+specific path (`/api/(.*)`) — and give the `app` service a binding to it, e.g.
+`{ "type": "service", "service": "api", "format": "url", "env": "API_URL" }`, then read
+`process.env.API_URL` in the browser bundle's build-time config or in another function.
+
+## 6. Content model
 
 `src/data/ebookContent.json` is the single source of truth for text — the website, the
 PDF and the DOCX all read from it. `src/data/visuals.ts` maps each chapter to its scene
