@@ -1,123 +1,144 @@
-# গল্পে গল্পে শিখি — শান্তা লাইফের বিমা প্রোডাক্ট ও আন্ডাররাইটিং গাইডলাইন
+# Shanta Life Learning Hub
 
-**ফিল্ড ফোর্স প্রশিক্ষণ ই-বুক** · Shanta Life Insurance PLC — Learning & Development
+**ফিল্ড ফোর্স অ্যাকাডেমি — পড়া, মূল্যায়ন ও অগ্রগতি, এক অ্যাপে।**
+Shanta Life Insurance PLC · Learning & Development
 
-A brand-compliant digital book that presents every Shanta Life product module **and the
-underwriting guideline** as field stories, plus a printable **PDF** and an editable
-**Word (DOCX)** edition.
+একটি অ্যাপে তিনটি কাজ একসাথে: **ই-বুক** (১৩ মডিউল, ৮৪ পৃষ্ঠার PDF ও Word সংস্করণ),
+**অ্যাসেসমেন্ট** (অধ্যায়ভিত্তিক যাচাই, বড় সেট, ট্রেনার-নির্ধারিত শেয়ার লিংক) এবং
+**অগ্রগতি** (লার্নার ড্যাশবোর্ড + ট্রেইনার রিপোর্ট)। সব ডেটা জমা হয় **একটিমাত্র
+Google Sheet**-এ — Learning Hub স্প্রেডশিট।
+
+> বিস্তারিত সেটআপ, স্কিমা ও সমস্যা-সমাধান: [`docs/LEARNING_HUB.md`](docs/LEARNING_HUB.md)
 
 ---
 
-## 1. What is inside
+## ১. কী কী আছে
 
-| Surface | Location | Notes |
+| সারফেস | কোথায় | নোট |
 | --- | --- | --- |
-| Web e-book (React + Vite + Tailwind 4) | `src/` | Reading-first layout, sticky table of contents, reading progress, interactive quizzes |
-| Downloadable **PDF** (84 pages, A4) | `public/shanta-life-ebook.pdf` | Cover, title page, contents with real page numbers, chapter scene art, objection playbooks, hard-question mock bank, back cover |
-| Downloadable **Word** file | `public/shanta-life-ebook.docx` | Same structure/visuals; each chapter starts on a new page, chapter = Heading 1 / section = Heading 2, field-based automatic TOC, SDPP tier table on its own page |
-| Brand assets | `public/assets/img/` | Approved logo (colour + white), cover artwork, scene illustrations, field photos |
-| Bengali webfonts | `public/fonts/` | Self-hosted Noto Sans Bengali (400 / 600 / 700 / 800) |
+| Learning Hub (React 19 + Vite 7 + Tailwind 4) | `src/pages/` | হোম ড্যাশবোর্ড, লাইব্রেরি, রিডার, অ্যাসেসমেন্ট, রেজাল্ট, প্রোফাইল, অ্যাডমিন |
+| ই-বুক রিডার (সম্পূর্ণ বই এক পাতায়) | `/book` (`src/pages/Book.tsx`) | সূচিপত্র, রিডিং প্রগ্রেস, প্রিন্ট, PDF/Word |
+| ডেটাবেস (Google Apps Script) | `apps-script/Code.gs` | ৮টি ট্যাব স্বয়ংক্রিয়ভাবে তৈরি/ম্যাপ করে, পুরনো ডেটা নষ্ট করে না |
+| **PDF** (৮৪ পৃষ্ঠা, A4) | `public/shanta-life-ebook.pdf` | কভার, সূচিপত্র (পেজ নম্বরসহ), সিন আর্ট, প্লেবুক, ব্যাক কভার |
+| **Word** | `public/shanta-life-ebook.docx` | প্রতি অধ্যায় নতুন পৃষ্ঠা, H1/H2, অটো TOC, ওয়াইড টেবিল আলাদা পৃষ্ঠায় |
+| ব্র্যান্ড অ্যাসেট ও ফন্ট | `public/assets/img/`, `public/fonts/` | অনুমোদিত লোগো, সিন ইলাস্ট্রেশন, সেলফ-হোস্টেড নোটো সানস বাংলা |
 
-Content was extended (2026-10) in two passes. First: the field stories were rewritten
-longer and warmer, and four training banks were added — a need-based selling framework,
-a 7-step objection-handling method (LAER-PC), a hard mock-test bank and a no-need ethics
-playbook. Second: a new **Part II — Underwriting Guideline** (chapters ৮–১২) built from
-the approved underwriting presentation and documentation:
+### কনটেন্ট
 
-| Chapter | Focus |
+| পার্ট | মডিউল |
 | --- | --- |
-| ৮ · আন্ডাররাইটিং কী এবং কেন প্রয়োজন? | definition, underwriter's role, 5 risk drivers, process flow |
-| ৯ · প্রয়োজনীয় নথি ও গাইডলাইন | adult / minor / payor document lists, 60-second checklist |
-| ১০ · স্বাস্থ্যগত ও পারিবারিক তথ্যের সততা | utmost good faith, medical & family history, rider amounts |
-| ১১ · এজেন্ট/ফিল্ড আন্ডাররাইটারের দায়বদ্ধতা | FA UW report fields, risk categorisation, pocket checklist |
-| ১২ · মেডিকেল ও ফিন্যান্সিয়াল আন্ডাররাইটিং গ্রিড | age × sum-assured grid, 50 lakh / 1 crore panels, child limits |
+| ভিত্তি | ০১ ভূমিকা ও লার্নিং ফ্রেমওয়ার্ক |
+| **Part I — প্রোডাক্ট** | ০২ এন্ডোমেন্ট · ০৩ S4PP · ০৪ SCEP · ০৫ SSPE · ০৬ SDPP · ০৭ রাইডার |
+| **Part II — আন্ডাররাইটিং** | ০৮ বেসিকস · ০৯ নথি · ১০ সততা · ১১ FA রিপোর্ট · ১২ মেডিকেল গ্রিড |
+| **Mastery** | ১৩ নিড-বেজড বিক্রয়, আপত্তির ৭ ধাপ, কঠিন মক প্রশ্ন, নো-নিড এথিক্স |
 
-Every product and underwriting figure in the new material comes from the supplied
-product chapters and underwriting documentation — nothing is invented.
+প্রতিটি অধ্যায় একই ছাঁচে: **সিন আর্ট → গল্প → সহজ ব্যাখ্যা → রেড অ্যালার্ট → কুইজ →
+গোল্ডেন রুল → সেলস প্লেবুক** (আপত্তি, কঠিন প্রশ্ন, ভুল ধারণা)।
 
-## 2. Brand compliance
+## ২. আর্কিটেকচার
 
-Taken directly from `Shanta_Life_Brand_Guidelines.pdf` (Drive) and the approved
-`SLI Official Template 2025` master:
-
-| Token | Value | Usage |
-| --- | --- | --- |
-| Charcoal Grey | `#3C3C3B` | Text, strong panels, headers/footers |
-| Olive Green | `#978C21` | Brand identity, headings, primary accents |
-| Sunset Orange | `#F37021` | High-attention accents, CTAs, rules |
-| Seashell | `#FCF4EB` | Paper / reading background |
-| Blue · Brown · Green · Plum | `#026A8B` · `#7F2D23` · `#254525` · `#583382` | Supporting UI states only (never dominant) |
-
-Rules honoured: approved logo artwork only (never redrawn, never recoloured),
-generous clear space, no stretched/skewed logo, charcoal-dominant balance with olive
-and sunset used as accents, strong text/background contrast, authentic customer-centred
-imagery, clean uncluttered layouts.
-
-Design tokens live in `src/index.css` (`@theme`), the PDF palette in
-`scripts/build_pdf.py`, the Word palette in `scripts/generate-docx.mjs`.
-
-## 3. Running the site
-
-```bash
-npm install
-npm run dev        # http://localhost:5173
-npm run build      # single-file build in dist/
-npm run typecheck
+```
+React SPA (static, Vercel)
+  └── localStorage: অফলাইন ফার্স্ট স্টোর + সিঙ্ক কিউ
+        └── Apps Script Web App  (GET bootstrap / POST submit …)
+              └── Learning Hub Spreadsheet: Learners · Progress · Quizzes ·
+                  Activations · Responses · Supervisors · Zones · Meta
 ```
 
-## 4. Regenerating the book files
+- **অফলাইন-ফার্স্ট:** মাঠে নেটওয়ার্ক না থাকলেও পড়া, কুইজ ও অগ্রগতি কাজ করে;
+  সংযোগ ফিরলে কিউ স্বয়ংক্রিয়ভাবে শিটে যায়। ডুপ্লিকেট হয় না (আইডি-ভিত্তিক upsert)।
+- **একটাই শিট:** পুরনো কুইজ পোর্টালের আলাদা "Score Sheet" আর দরকার নেই। আগের
+  ট্যাব থাকলে স্ক্রিপ্ট হেডার মিলিয়ে সেই কলামেই লেখে, নতুন কলাম ডানে যোগ করে।
+- **কোনো লগইন নেই:** লার্নার লিংক খুলে নাম-মোবাইল দিয়ে সরাসরি অংশ নেয়;
+  ট্রেইনার `/admin`-এ পিন (ডিফল্ট **2468**) দিয়ে ঢোকে।
+
+## ৩. চালানো ও যাচাই
 
 ```bash
-npm run build:docx                      # Word edition  → public/shanta-life-ebook.docx
-pip install -r scripts/requirements.txt # fpdf2 + uharfbuzz + pillow (only needed once)
-npm run build:pdf                       # PDF edition   → public/shanta-life-ebook.pdf
-npm run build:book                      # both
+npm ci
+npm run dev          # http://localhost:5173
+npm run typecheck    # TypeScript
+npm test             # ১২ রুটের SSR স্মোক + ৪০টি Apps Script বেকেন্ড চেক
+npm run test:flow    # jsdom দিয়ে আসল ক্লিক-ফ্লো (কুইজ → রেজাল্ট, প্রোগ্রেস, শেয়ার লিংক)
+npm run build        # dist/ — একটাই self-contained index.html
 ```
 
-The PDF is rendered with HarfBuzz text shaping so Bengali conjuncts, vowel signs and
-matras are typeset correctly, using the same self-hosted Noto Sans Bengali family as
-the website. Chapter page numbers are resolved in a first pass and injected into the
-contents page in a second pass.
+## ৪. Google Sheet সংযোগ (একবার)
 
-## 5. Deploying on Vercel
+1. Learning Hub স্প্রেডশিট → **Extensions → Apps Script** → `apps-script/Code.gs` পেস্ট → Save।
+2. ফাংশন **`setupHubSheets`** → ▶ Run → অনুমতি দিন।
+3. **Deploy → New deployment → Web app** (Execute as **Me**, Who has access **Anyone**)
+   → `…/exec` URL কপি।
+4. অ্যাপে **অ্যাডমিন → সেটিংস** → URL বসিয়ে **সেভ ও টেস্ট**।
 
-The repository ships a `vercel.json` at the root. **The project is a single static
-service** — a Vite build that outputs one self-contained `dist/index.html` plus the
-`public/` files (scene art, Bengali fonts, the PDF and the DOCX).
+কোড বদলালে **নতুন version deploy** করতে ভুলবেন না। বিস্তারিত: `docs/LEARNING_HUB.md`।
 
-| Setting | Value |
+## ৫. বইয়ের PDF/Word পুনরায় তৈরি
+
+```bash
+npm run build:docx                      # Word → public/shanta-life-ebook.docx
+pip install -r scripts/requirements.txt # fpdf2 + uharfbuzz + pillow (একবার)
+npm run build:pdf                       # PDF → public/shanta-life-ebook.pdf
+npm run build:book                      # দুটোই
+```
+
+PDF HarfBuzz টেক্সট শেপিং দিয়ে তৈরি, তাই বাংলা যুক্তাক্ষর ও মাত্রা সঠিক বসে।
+অধ্যায়ের পেজ নম্বর প্রথম পাসে বের করে দ্বিতীয় পাসে সূচিপত্রে বসানো হয়।
+
+## ৬. Vercel-এ ডিপ্লয়
+
+| সেটিং | মান |
 | --- | --- |
-| Framework preset | Vite (auto-detected) |
-| Install command | `npm ci` |
-| Build command | `npm run build` |
-| Output directory | `dist` |
-| Node version | `22.x` (pinned via `.nvmrc` + `package.json › engines`) |
+| Framework preset | Vite (auto) |
+| Install / Build | `npm ci` / `npm run build` |
+| Output | `dist` |
+| Node | `22.x` (`.nvmrc` + `engines`) |
 
-Import the repo in Vercel, keep the detected settings, and deploy — no environment
-variables and no build-time services are required. Long-lived caching is only applied to
-`/assets/*` and `/fonts/*`; the two downloads are sent with
-`Cache-Control: public, max-age=0, must-revalidate` so a rebuilt PDF/DOCX appears
-immediately after a deploy.
+`vercel.json`-এ `/library`, `/book`, `/assessment`, `/admin`, `/profile`-এর জন্য
+SPA rewrites আছে, যাতে ডিপ লিংক রিফ্রেশেও কাজ করে। PDF/DOCX-এ
+`must-revalidate`; `/assets/*` ও `/fonts/*`-এ ক্যাশ।
 
-**Why there is no `services` block:** `scripts/` holds *offline generators*
-(`build_pdf.py`, `generate-docx.mjs`) that produce the PDF and Word files committed in
-`public/`; they are run by a human (`npm run build:book`), not per request. They expose
-no HTTP entrypoint, so declaring them as a Python service would fail to build and add no
-runtime capability. The site never calls any backend: every page, image, font and
-download is static, so there are no inter-service bindings to declare either.
+**কেন কোনো `services` বা binding নেই:** `scripts/` শুধু অফলাইন জেনারেটর
+(`build_pdf.py`, `generate-docx.mjs`) — কোনো HTTP এন্ট্রিপয়েন্ট নেই, তাই সেটিকে
+Python সার্ভিস বানালে বিল্ড ফেল করত। রানটাইম API-র দরকার হলে Apps Script-ই সেটি
+পূরণ করে (আলাদা ডিপ্লয়মেন্ট হিসেবে), ব্রাউজার থেকে সরাসরি ডাকা হয় — কোনো
+inter-service binding লাগে না।
 
-If a runtime API is ever needed, add it as its own directory with a real entrypoint
-(e.g. `api/app.py` exposing `app`), declare it as a second service, make it public on a
-specific path (`/api/(.*)`) — and give the `app` service a binding to it, e.g.
-`{ "type": "service", "service": "api", "format": "url", "env": "API_URL" }`, then read
-`process.env.API_URL` in the browser bundle's build-time config or in another function.
+## ৭. কোড ম্যাপ
 
-## 6. Content model
+| ফাইল | কাজ |
+| --- | --- |
+| `src/App.tsx` | রাউটিং, শেয়ার-লিংক এন্ট্রি, ৪০৪ |
+| `src/pages/*` | Home · Library · ModuleReader · Book · Assessment · TakeQuiz · Result · Profile · Admin |
+| `src/lib/hub.ts` | অফলাইন স্টোর, সিঙ্ক কিউ, API ব্রিজ, ডেরাইভড সিলেক্টর |
+| `src/lib/router.tsx` | History API রাউটার (বইয়ের `#anchor` অটুট রাখে) |
+| `src/data/curriculum.ts` | মডিউল তালিকা + বই থেকে স্বয়ংক্রিয়ভাবে তৈরি কুইজ ব্যাংক |
+| `src/data/ebookContent.json` | সব টেক্সটের একক উৎস (ওয়েব + PDF + DOCX) |
+| `apps-script/Code.gs` | শিট স্কিমা, অ্যাডাপ্টিভ হেডার ম্যাপিং, GET/POST API |
+| `scripts/smoke.mjs`, `scripts/flow-test.mjs`, `scripts/backend-test.mjs` | তিন স্তরের টেস্ট |
 
-`src/data/ebookContent.json` is the single source of truth for text — the website, the
-PDF and the DOCX all read from it. `src/data/visuals.ts` maps each chapter to its scene
-illustration and caption, so a new visual can be added without touching the copy.
+## ৮. ব্র্যান্ড কমপ্লায়েন্স
 
-Per chapter the reader gets: **scene art → intro → গল্প (story) → সহজ ব্যাখ্যা
-(explanation, tables and actuarial formulas) → রেড অ্যালার্ট → কুইজ → গোল্ডেন রুল →
-পরবর্তী অধ্যায়**.
+Taken from `Shanta_Life_Brand_Guidelines.pdf` (Drive) ও অনুমোদিত
+`SLI Official Template 2025`:
+
+| টোকেন | মান | ব্যবহার |
+| --- | --- | --- |
+| Charcoal Grey | `#3C3C3B` | টেক্সট, শক্ত প্যানেল, হেডার/ফুটার |
+| Olive Green | `#978C21` | ব্র্যান্ড আইডেন্টিটি, হেডিং, অগ্রগতি |
+| Sunset Orange | `#F37021` | CTA, হাইলাইট রুল, সতর্কতা |
+| Seashell | `#FCF4EB` | রিডিং ব্যাকগ্রাউন্ড |
+| Blue · Brown · Green · Plum | `#026A8B` · `#7F2D23` · `#254525` · `#583382` | সহায়ক স্টেট (কখনো প্রধান নয়) |
+
+অনুমোদিত লোগো আর্টওয়ার্কই ব্যবহৃত (নতুন করে আঁকা বা রঙ বদলানো নয়), যথেষ্ট
+ক্লিয়ার স্পেস, প্রসারিত/বাঁকা লোগো নেই, চারকোল-প্রধান ভারসাম্য। টোকেন:
+`src/index.css` (`@theme`), PDF প্যালেট `scripts/build_pdf.py`, DOCX প্যালেট
+`scripts/generate-docx.mjs`।
+
+## ৯. কনটেন্ট মডেল
+
+`src/data/ebookContent.json` — ওয়েব, PDF ও DOCX তিনটিরই একক টেক্সট-উৎস।
+`src/data/visuals.ts` — অধ্যায় → সিন ইলাস্ট্রেশন ম্যাপিং।
+`src/data/sales/*.json` — অধ্যায়ভিত্তিক স্টোরি এনরিচমেন্ট ও সেলস প্লেবুক।
+`src/data/curriculum.ts` — মডিউল মেটাডেটা এবং বইয়ের কুইজ থেকে তৈরি অ্যাসেসমেন্ট ব্যাংক
+(নতুন অধ্যায় যোগ করলে কুইজও নিজে থেকেই যোগ হয়)।
