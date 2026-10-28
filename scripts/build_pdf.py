@@ -81,6 +81,11 @@ def chapter_visual_map() -> dict:
         "sspe": IMG / "scene-sspe.jpg",
         "sdpp": IMG / "scene-sdpp.jpg",
         "riders": IMG / "scene-riders.jpg",
+        "uwn-basics": IMG / "scene-uwn-basics.jpg",
+        "uwn-docs": IMG / "scene-uwn-docs.jpg",
+        "uwn-honesty": IMG / "scene-uwn-honesty.jpg",
+        "uwn-fa-report": IMG / "scene-uwn-fa-report.jpg",
+        "uwn-grid": IMG / "scene-uwn-grid.jpg",
     }
 
 
@@ -91,6 +96,11 @@ VISUAL_CAPTIONS = {
     "sspe": "একবারের বিনিয়োগে দীর্ঘমেয়াদি নিশ্চিন্ততা",
     "sdpp": "নমনীয় সঞ্চয় আর স্বাস্থ্য সুরক্ষা — একই পলিসিতে",
     "riders": "সঠিক রাইডার যুক্ত করলেই ৩৬০-ডিগ্রি সুরক্ষা বলয়",
+    "uwn-basics": "প্রস্তাব জমা মানেই পলিসি নয় — আগে আসে ঝুঁকির যাচাই",
+    "uwn-docs": "সঠিক নথি জমা দিলেই দ্রুত অনুমোদন",
+    "uwn-honesty": "সত্য তথ্যই দাবির সময় পরিবারের আসল সুরক্ষা",
+    "uwn-fa-report": "এজেন্টই কোম্পানির প্রথম ফিল্ড আন্ডাররাইটার",
+    "uwn-grid": "বয়স ও বীমাঙ্ক মিলিয়ে এক নজরে সঠিক টেস্টের তালিকা",
 }
 
 
@@ -715,7 +725,7 @@ def draw_title_page(pdf: Book) -> None:
 
     pdf.ln(6)
     facts = [
-        ("প্রোডাক্ট মডিউল", bn(len(DATA["chapters"]))),
+        ("মোট মডিউল", bn(len(DATA["chapters"]))),
         ("মাস্টার কুইজ", bn(len(DATA["masterAssessment"]["questions"]))),
         ("সংস্করণ", "১.০"),
         ("প্রকাশকাল", "২০২৬"),
@@ -858,7 +868,7 @@ def draw_toc(pdf: Book, entries: list[tuple[str, str, str]], pages: list[int] | 
 def draw_chapter(pdf: Book, chapter: dict) -> int:
     visuals = chapter_visual_map()
     cid = chapter["id"]
-    pdf.running_label = f"CHAPTER {chapter['number']} · {chapter['titleEn'].upper()[:34]}"
+    pdf.running_label = f"CHAPTER {chapter['number']} · {chapter['titleEn'].upper()[:42]}"
     pdf.add_page()
     start_page = pdf.page_no()
 
@@ -878,7 +888,7 @@ def draw_chapter(pdf: Book, chapter: dict) -> int:
     pdf.set_xy(ML + 17, y + 5.8)
     pdf.set_font("bns", "", 6.6)
     pdf.set_text_color(*CHARCOAL_SOFT)
-    pdf.cell(120, 4, "PRODUCT MODULE  ·  FIELD TRAINING", align="L")
+    pdf.cell(120, 4, ("UNDERWRITING GUIDE  ·  FIELD TRAINING" if cid.startswith("uwn") else "PRODUCT MODULE  ·  FIELD TRAINING"), align="L")
 
     pdf.set_xy(ML, y + 17)
     pdf.set_font("bn", "B", 19.5)
@@ -920,20 +930,18 @@ def draw_chapter(pdf: Book, chapter: dict) -> int:
     if dialogue:
         pad = 5.0
         inner = CW - pad * 2
-        pdf.will_page_break(40)
-        y0 = pdf.get_y()
+        chars_text = "চরিত্র: " + story.get("characters", "")
 
-        # ---- measure exactly the way we draw -------------------------------
+        # ---- measure every turn exactly once -------------------------------
         pdf.set_font("bn", "", 8.2)
-        chars_h = pdf.multi_cell(inner, 4.6, "চরিত্র: " + story.get("characters", ""),
-                                 dry_run=True, output="HEIGHT", align="L")
-        head_h = pad + 5.0 + chars_h + 1.6 + 1.0
+        chars_h = pdf.multi_cell(inner, 4.6, chars_text, dry_run=True, output="HEIGHT", align="L")
         heights = []
         for d in dialogue:
             if d["speaker"] in ("বর্ণনা", "ফলাফল"):
+                pdf.set_font("bn", "", 8.8)
                 heights.append(
                     pdf.multi_cell(inner, 5.2, d["speaker"] + ": " + d["text"],
-                                   dry_run=True, output="HEIGHT", align="L") + 1.3
+                                   dry_run=True, output="HEIGHT", align="L") + 4.2
                 )
             else:
                 pdf.set_font("bn", "", 8.9)
@@ -942,48 +950,76 @@ def draw_chapter(pdf: Book, chapter: dict) -> int:
                     + pdf.multi_cell(inner - 3, 5.4, d["text"], dry_run=True, output="HEIGHT", align="L") * 1.02
                     + 1.8
                 )
-        total = head_h + sum(heights) + pad - 8.0
-        if y0 + total > PAGE_H - MB:
-            pdf.add_page()
-            y0 = pdf.get_y()
-            total = min(total, PAGE_H - MB - y0)
-        pdf.panel(ML, y0, CW, total, SHELL, bar=OLIVE)
-        pdf.set_xy(ML + pad, y0 + pad - 1.2)
-        pdf.set_font("bn", "B", 10.4)
-        pdf.set_text_color(*OLIVE_DEEP)
-        pdf.cell(inner, 5.4, "০১ · গল্প (Story)", align="L")
-        pdf.set_xy(ML + pad, y0 + pad + 4.4)
-        pdf.set_font("bn", "", 8.2)
-        pdf.set_text_color(*CHARCOAL_SOFT)
-        pdf.multi_cell(inner, 4.6, "চরিত্র: " + story.get("characters", ""), align="L")
-        pdf.ln(1.6)
 
-        for d in dialogue:
-            speaker = d["speaker"]
-            is_note = speaker in ("বর্ণনা", "ফলাফল")
-            if is_note:
-                pdf.set_x(ML + pad)
-                pdf.set_font("bn", "B", 8.6)
-                pdf.set_text_color(*SUNSET_DEEP)
-                pdf.write(5.2, speaker + ": ")
-                pdf.set_font("bn", "", 8.8)
-                pdf.set_text_color(*INK)
-                pdf.write(5.2, d["text"])
-                pdf.ln(6.5)
+        # ---- split the conversation into page-sized panels ----------------
+        idx = 0
+        first_panel = True
+        while idx < len(dialogue):
+            head_h = pad + (5.0 + chars_h + 1.6 if first_panel else 5.0) + 1.0
+            budget = (PAGE_H - MB - pdf.get_y()) - head_h - pad + 8.0
+            take = 0
+            used = 0.0
+            while idx + take < len(dialogue) and used + heights[idx + take] <= budget:
+                used += heights[idx + take]
+                take += 1
+            if take == 0:
+                if first_panel:
+                    pdf.add_page()
+                    continue
+                take = 1  # never stall on an oversized single turn
+
+            chunk = dialogue[idx:idx + take]
+            total = head_h + sum(heights[idx:idx + take]) + pad - 8.0
+            y0 = pdf.get_y()
+            if y0 + total > PAGE_H - MB:
+                pdf.add_page()
+                y0 = pdf.get_y()
+            pdf.panel(ML, y0, CW, total, SHELL, bar=OLIVE)
+            pdf.set_xy(ML + pad, y0 + pad - 1.2)
+            pdf.set_font("bn", "B", 10.4)
+            pdf.set_text_color(*OLIVE_DEEP)
+            pdf.cell(inner, 5.4, "০১ · গল্প (Story)" if first_panel else "০১ · গল্প (চলমান)", align="L")
+            if first_panel:
+                pdf.set_xy(ML + pad, y0 + pad + 4.4)
+                pdf.set_font("bn", "", 8.2)
+                pdf.set_text_color(*CHARCOAL_SOFT)
+                pdf.multi_cell(inner, 4.6, chars_text, align="L")
+                pdf.ln(1.6)
             else:
-                pdf.set_x(ML + pad)
-                pdf.set_font("bn", "B", 8.6)
-                pdf.set_text_color(*(OLIVE_DEEP if speaker != dialogue[0]["speaker"] else CHARCOAL))
-                pdf.cell(inner, 4.8, speaker, align="L")
-                pdf.ln(5.0)
-                pdf.set_x(ML + pad + 3)
-                pdf.set_font("bn", "", 8.9)
-                pdf.set_text_color(*INK)
-                pdf.multi_cell(inner - 3, 5.4, d["text"], align="L")
-                pdf.ln(1.8)
-        if os.environ.get("SLI_DEBUG"):
-            print(f"[story] allocated={total:.1f} used={pdf.get_y()-y0:.1f}")
-        pdf.set_y(y0 + min(total, PAGE_H - MB - y0) + 2.4)
+                pdf.set_y(y0 + pad + 4.0)
+
+            for d in chunk:
+                speaker = d["speaker"]
+                is_note = speaker in ("বর্ণনা", "ফলাফল")
+                if is_note:
+                    pdf.set_x(ML + pad)
+                    pdf.set_font("bn", "B", 8.6)
+                    pdf.set_text_color(*SUNSET_DEEP)
+                    pdf.write(5.2, speaker + ": ")
+                    pdf.set_font("bn", "", 8.8)
+                    pdf.set_text_color(*INK)
+                    pdf.write(5.2, d["text"])
+                    pdf.ln(6.5)
+                else:
+                    pdf.set_x(ML + pad)
+                    pdf.set_font("bn", "B", 8.6)
+                    pdf.set_text_color(
+                        *(OLIVE_DEEP if speaker != dialogue[0]["speaker"] else CHARCOAL)
+                    )
+                    pdf.cell(inner, 4.8, speaker, align="L")
+                    pdf.ln(5.0)
+                    pdf.set_x(ML + pad + 3)
+                    pdf.set_font("bn", "", 8.9)
+                    pdf.set_text_color(*INK)
+                    pdf.multi_cell(inner - 3, 5.4, d["text"], align="L")
+                    pdf.ln(1.8)
+            if os.environ.get("SLI_DEBUG"):
+                print(f"[story] panel allocated={total:.1f} used={pdf.get_y()-y0:.1f} turns={len(chunk)}")
+            pdf.set_y(y0 + total + 2.4)
+            idx += take
+            first_panel = False
+            if idx < len(dialogue):
+                pdf.add_page()
 
     if ext.get("aside"):
         pdf.stacked_panel(
@@ -1014,8 +1050,18 @@ def draw_chapter(pdf: Book, chapter: dict) -> int:
     pdf.ln(1.4)
 
     if exp.get("paramTable"):
-        pdf.sub_heading("প্রোডাক্টের মূল বৈশিষ্ট্যসমূহ")
-        pdf.table(exp["paramTable"]["headers"], exp["paramTable"]["rows"], widths=[34, 66])
+        pt = exp["paramTable"]
+        wide = len(pt["headers"]) > 2
+        pdf.sub_heading(
+            pt.get("label")
+            or ("বয়স ও বীমাঙ্ক অনুযায়ী মেডিকেল পরীক্ষা" if wide else "প্রোডাক্টের মূল বৈশিষ্ট্যসমূহ")
+        )
+        pdf.table(
+            pt["headers"],
+            pt["rows"],
+            widths=None if wide else [34, 66],
+            font_size=7.6 if wide else 8.0,
+        )
 
     for key in ("sections", "sections2"):
         for sec in exp.get(key, []) or []:
@@ -1511,14 +1557,14 @@ def build(toc_pages: list[int] | None, out: Path) -> list[int]:
     for ch in DATA["chapters"]:
         entries.append((ch["number"], ch["titleBn"], "chapter"))
     entries += [
-        ("০৮", MASTERY["needBased"]["heading"], "appendix"),
-        ("০৯", MASTERY["objectionMethod"]["heading"], "appendix"),
-        ("১০", MASTERY["mockTest"]["heading"], "appendix"),
-        ("১১", MASTERY["noNeed"]["heading"], "appendix"),
-        ("১২", DATA["quickReference"]["heading"], "appendix"),
-        ("১৩", DATA["masterAssessment"]["heading"], "appendix"),
-        ("১৪", DATA["ethicsChecklist"]["heading"], "appendix"),
-        ("১৫", "উপসংহার", "appendix"),
+        ("১৩", MASTERY["needBased"]["heading"], "appendix"),
+        ("১৪", MASTERY["objectionMethod"]["heading"], "appendix"),
+        ("১৫", MASTERY["mockTest"]["heading"], "appendix"),
+        ("১৬", MASTERY["noNeed"]["heading"], "appendix"),
+        ("১৭", DATA["quickReference"]["heading"], "appendix"),
+        ("১৮", DATA["masterAssessment"]["heading"], "appendix"),
+        ("১৯", DATA["ethicsChecklist"]["heading"], "appendix"),
+        ("২০", "উপসংহার", "appendix"),
     ]
 
     draw_toc(pdf, entries, toc_pages)

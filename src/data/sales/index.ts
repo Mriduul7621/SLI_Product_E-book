@@ -26,8 +26,25 @@ import scep from "@/data/sales/scep.json";
 import sspe from "@/data/sales/sspe.json";
 import sdpp from "@/data/sales/sdpp.json";
 import riders from "@/data/sales/riders.json";
+import uwnBasics from "@/data/sales/uwn-basics.json";
+import uwnDocs from "@/data/sales/uwn-docs.json";
+import uwnHonesty from "@/data/sales/uwn-honesty.json";
+import uwnFaReport from "@/data/sales/uwn-fa-report.json";
+import uwnGrid from "@/data/sales/uwn-grid.json";
 
-const PACKS = [endowment, s4pp, scep, sspe, sdpp, riders] as unknown as SalesPack[];
+const PACKS = [
+  endowment,
+  s4pp,
+  scep,
+  sspe,
+  sdpp,
+  riders,
+  uwnBasics,
+  uwnDocs,
+  uwnHonesty,
+  uwnFaReport,
+  uwnGrid,
+] as unknown as SalesPack[];
 
 export function storyFor(chapterId: string): StoryExtended | undefined {
   if (!storyIndex) {

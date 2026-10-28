@@ -57,7 +57,10 @@ export default function Chapter({ chapter }: { chapter: AnyChapter }) {
           <div>
             <h4 className="mb-3 flex items-center gap-2 text-[13px] font-extrabold uppercase tracking-[0.12em] text-charcoal">
               <span className="h-3 w-[3px] bg-olive" aria-hidden="true" />
-              প্রোডাক্টের মূল বৈশিষ্ট্যসমূহ
+              {exp.paramTable.label ??
+                (exp.paramTable.headers.length > 2
+                  ? "বয়স ও বীমাঙ্ক অনুযায়ী মেডিকেল পরীক্ষা"
+                  : "প্রোডাক্টের মূল বৈশিষ্ট্যসমূহ")}
             </h4>
             <ParamTable headers={exp.paramTable.headers} rows={exp.paramTable.rows} />
           </div>

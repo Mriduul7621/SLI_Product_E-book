@@ -6,3 +6,6 @@ dist/
 # The generated book editions are served from /public, keep them tracked
 !public/shanta-life-ebook.pdf
 !public/shanta-life-ebook.docx
+
+# Generated cover variants that are not used by the app
+public/assets/img/cover-art-a.png
